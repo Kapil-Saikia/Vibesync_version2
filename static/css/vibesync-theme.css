@@ -1,0 +1,509 @@
+:root {
+  --vs-bg-primary: #05060a;
+  --vs-bg-secondary: #101223;
+  --vs-bg-tertiary: #191c32;
+  --vs-surface: rgba(255, 255, 255, 0.04);
+  --vs-surface-strong: rgba(255, 255, 255, 0.08);
+  --vs-text-primary: #f8fbff;
+  --vs-text-secondary: #a5b4ce;
+  --vs-text-muted: #6f7d96;
+  --vs-accent: #ec4899;
+  --vs-accent-2: #7c3aed;
+  --vs-accent-3: #14b8a6;
+  --vs-danger: #f43f5e;
+  --vs-warning: #fbbf24;
+  --vs-success: #34d399;
+  --vs-radius-sm: 10px;
+  --vs-radius-md: 16px;
+  --vs-radius-lg: 24px;
+  --vs-blur: 18px;
+  --vs-shadow-soft: 0 15px 45px rgba(0, 0, 0, 0.35);
+  --vs-shadow-strong: 0 25px 80px rgba(5, 6, 10, 0.65);
+  --vs-gradient: linear-gradient(135deg, #7c3aed 0%, #ec4899 45%, #f97316 100%);
+  --vs-gradient-soft: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(236, 72, 153, 0.25));
+  --vs-border: rgba(255, 255, 255, 0.08);
+  --vs-border-strong: rgba(255, 255, 255, 0.16);
+  --vs-transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.22), transparent 40%),
+              radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.22), transparent 35%),
+              radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.14), transparent 45%),
+              var(--vs-bg-primary);
+  color: var(--vs-text-primary);
+  min-height: 100vh;
+  line-height: 1.65;
+  background-attachment: fixed;
+}
+
+a {
+  color: var(--vs-accent);
+  text-decoration: none;
+  transition: var(--vs-transition);
+}
+
+a:hover {
+  color: #fbb6ce;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Layout helpers */
+.container {
+  width: min(1200px, 92vw);
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+/* Headings & sections */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--vs-text-primary);
+}
+
+.section-title,
+.card-title,
+.page-title {
+  background: linear-gradient(120deg, #fdf2f8 0%, #e9d5ff 30%, #bae6fd 55%, #fdf2f8 90%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.page-subtitle,
+.subtitle {
+  color: var(--vs-text-secondary);
+  font-weight: 500;
+}
+
+/* Glass cards */
+[class*="card"],
+.hero,
+.stats-bar,
+.controls-bar,
+.music-player,
+.profile-header,
+.playlist-card,
+.song-card,
+.history-item,
+.form-card,
+.empty-state,
+.stat-card,
+.track-item {
+  background: var(--vs-surface);
+  border: 1px solid var(--vs-border);
+  border-radius: var(--vs-radius-lg);
+  box-shadow: var(--vs-shadow-soft);
+  backdrop-filter: blur(var(--vs-blur));
+  transition: var(--vs-transition);
+}
+
+[class*="card"]:hover,
+.song-card:hover,
+.history-item:hover,
+.track-item:hover {
+  transform: translateY(-6px);
+  border-color: var(--vs-border-strong);
+  box-shadow: var(--vs-shadow-strong);
+}
+
+/* Buttons */
+button,
+.btn,
+[class*="btn"] {
+  font-family: inherit;
+  border: none;
+  border-radius: var(--vs-radius-md);
+  padding: 0.9rem 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--vs-transition);
+  background: var(--vs-gradient);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(236, 72, 153, 0.35);
+}
+
+button::before,
+.btn::before,
+[class*="btn"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.35), transparent 60%);
+  opacity: 0;
+  transition: var(--vs-transition);
+}
+
+button:hover::before,
+.btn:hover::before,
+[class*="btn"]:hover::before {
+  opacity: 1;
+}
+
+button:hover,
+.btn:hover,
+[class*="btn"]:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px rgba(236, 72, 153, 0.45);
+}
+
+.btn-secondary,
+button.secondary,
+[class*="btn"].secondary {
+  background: var(--vs-surface-strong);
+  color: var(--vs-text-primary);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-outline,
+button.outline {
+  background: transparent;
+  border: 1px solid var(--vs-border);
+  color: var(--vs-text-primary);
+  box-shadow: none;
+}
+
+.btn-outline:hover {
+  border-color: var(--vs-accent);
+  color: var(--vs-accent);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #f43f5e, #fb7185);
+  box-shadow: 0 15px 35px rgba(244, 63, 94, 0.4);
+}
+
+/* Forms */
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: var(--vs-radius-sm);
+  border: 1px solid var(--vs-border);
+  background: rgba(20, 22, 33, 0.75);
+  color: var(--vs-text-primary);
+  font-size: 0.95rem;
+  transition: var(--vs-transition);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--vs-accent);
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.25);
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--vs-text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--vs-bg-secondary);
+  border-radius: var(--vs-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--vs-border);
+  box-shadow: var(--vs-shadow-soft);
+}
+
+th,
+td {
+  padding: 0.9rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+th {
+  background: rgba(255, 255, 255, 0.04);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: var(--vs-text-secondary);
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.status-badge {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status-active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.status-inactive {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+}
+
+/* Badges & chips */
+.chip,
+.tag,
+[class*="badge"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--vs-text-secondary);
+}
+
+.chip.accent {
+  background: rgba(236, 72, 153, 0.15);
+  color: #fbcfe8;
+}
+
+.chip.success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #bbf7d0;
+}
+
+.chip.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fde68a;
+}
+
+/* Lists */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--vs-border);
+  border-radius: var(--vs-radius-md);
+  transition: var(--vs-transition);
+}
+
+.list-item:hover {
+  border-color: var(--vs-border-strong);
+  transform: translateY(-4px);
+}
+
+/* Hero & nav */
+.hero {
+  background: var(--vs-gradient);
+  color: #fff;
+  border: none;
+  box-shadow: var(--vs-shadow-strong);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), transparent 50%);
+  pointer-events: none;
+}
+
+.navbar,
+.header {
+  background: rgba(10, 12, 22, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  border-radius: var(--vs-radius-lg);
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.navbar a,
+.header a {
+  color: inherit;
+}
+
+.navbar .back-btn,
+.header .back-btn {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Cards content */
+.song-card-image,
+.playlist-cover,
+.history-thumbnail,
+.artist-photo,
+.profile-avatar,
+.player-thumbnail {
+  border-radius: var(--vs-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: var(--vs-shadow-soft);
+}
+
+.song-card {
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.song-card-footer,
+.history-actions,
+.track-actions,
+.playlist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.song-favorite-btn,
+.song-remove-btn,
+.history-delete,
+.history-play {
+  border-radius: 999px;
+}
+
+.song-favorite-btn {
+  background: rgba(236, 72, 153, 0.15);
+  color: #fecdd3;
+  width: 42px;
+  height: 42px;
+}
+
+.song-favorite-btn.favorited {
+  background: linear-gradient(135deg, #fb7185, #f472b6);
+  color: #fff;
+}
+
+.empty-state {
+  border-style: dashed;
+  text-align: center;
+  padding: 2.5rem;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+/* Music player */
+.music-player {
+  border-radius: var(--vs-radius-xl) var(--vs-radius-xl) 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(5, 6, 10, 0.95);
+}
+
+.music-player .player-controls button {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+}
+
+.music-player .player-btn.play-pause {
+  background: var(--vs-gradient);
+  box-shadow: 0 15px 35px rgba(124, 58, 237, 0.35);
+}
+
+.progress-bar {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progress-fill {
+  background: var(--vs-gradient);
+}
+
+/* Notifications */
+.notification {
+  border-radius: var(--vs-radius-md);
+  border: 1px solid var(--vs-border-strong);
+  background: rgba(5, 6, 10, 0.9);
+  box-shadow: var(--vs-shadow-soft);
+}
+
+/* Utility */
+.blurred {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.accent-gradient {
+  background: var(--vs-gradient);
+  color: #fff;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shadowed {
+  box-shadow: var(--vs-shadow-soft);
+}
+
+.glow {
+  box-shadow: 0 0 35px rgba(236, 72, 153, 0.35);
+}
+
+.full-bleed {
+  width: min(1400px, 96vw);
+  margin-inline: auto;
+}
+
+.glass {
+  border-radius: var(--vs-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 12, 22, 0.6);
+  backdrop-filter: blur(18px);
+}
+

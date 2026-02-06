@@ -1,0 +1,58 @@
+# Virtual environment
+myenv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Large model and dataset files
+*.npz
+*.keras
+*.h5
+*.pkl
+*.csv
+
+# Database files
+*.db
+
+# Images and temporary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+temp_frame.jpg
+
+# Logs and checkpoints
+logs/
+checkpoints/
+
+myenv/
+*.npz
+*.keras
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.env/
+
+# ML models
+*.h5
+*.keras
+*.pt
+*.onnx
+
+# Temporary files
+temp_*.jpg
+*.log
+
+# Databases
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db

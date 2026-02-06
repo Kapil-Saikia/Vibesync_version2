@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard - VibeSync</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    @import url('/static/css/vibesync-theme.css');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0f111a;
+      color: #f5f7fa;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .header-left h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #a2a9b8;
+      font-size: 0.875rem;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, #ec4899, #db2777);
+      border-color: #ec4899;
+      color: white;
+    }
+
+    .tab:hover:not(.active) {
+      border-color: #ec4899;
+      background: rgba(236, 72, 153, 0.1);
+    }
+
+    .card {
+      background: #1a1d2b;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #ec4899;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: #ec4899;
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #ec4899;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      color: #a2a9b8;
+      font-size: 0.875rem;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="url"],
+    input[type="file"],
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #f5f7fa;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    input[type="file"] {
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    input[type="file"]::file-selector-button {
+      background: rgba(236, 72, 153, 0.2);
+      color: #ec4899;
+      border: 1px solid #ec4899;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 10px;
+      font-weight: 600;
+    }
+
+    input[type="file"]::file-selector-button:hover {
+      background: rgba(236, 72, 153, 0.3);
+    }
+
+    .image-preview {
+      max-width: 150px;
+      max-height: 150px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.1);
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #ec4899;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #ec4899;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #ec4899, #db2777);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .btn-success {
+      background: #22c55e;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #16a34a;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 0.875rem;
+    }
+
+    .user-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      overflow-x: auto;
+      display: block;
+    }
+
+    .user-table thead,
+    .user-table tbody,
+    .user-table tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .user-table thead {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .user-table th,
+    .user-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      word-wrap: break-word;
+    }
+
+    .user-table th {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #a2a9b8;
+    }
+
+    .user-table tr:hover {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-active {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .status-inactive {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .track-list {
+      display: grid;
+      gap: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .track-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    .track-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .track-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .track-meta {
+      font-size: 0.875rem;
+      color: #a2a9b8;
+    }
+
+    .track-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #a2a9b8;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1a1d2b;
+      color: #f5f7fa;
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+      border: 1px solid rgba(236, 72, 153, 0.3);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #a2a9b8;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #1a1d2b;
+      border-radius: 16px;
+      padding: 0;
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      position: sticky;
+      top: 0;
+      background: #1a1d2b;
+      z-index: 10;
+    }
+
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ec4899;
+    }
+
+    .close-modal {
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #a2a9b8;
+      background: none;
+      border: none;
+      padding: 4px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .close-modal:hover {
+      background: rgba(255,255,255,0.1);
+      color: #f5f7fa;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .history-item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .history-item-icon {
+      font-size: 1.5rem;
+    }
+
+    .history-item-info {
+      flex: 1;
+    }
+
+    .history-item-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .history-item-meta {
+      font-size: 0.875rem;
+      color: #a2a9b8;
+    }
+
+    .history-item-time {
+      font-size: 0.875rem;
+      color: #a2a9b8;
+      white-space: nowrap;
+    }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      
+      body {
+        padding: 12px;
+      }
+
+      .user-table {
+        font-size: 0.875rem;
+      }
+
+      .user-table th,
+      .user-table td {
+        padding: 8px;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <h1>🎵 Admin Dashboard</h1>
+        <p class="subtitle">Manage users, songs, and analytics</p>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary" onclick="window.location.href='/home'">← Back to Home</button>
+        <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+        <button class="btn btn-danger" onclick="handleLogout()">🚪 Logout</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('overview')">📊 Overview</div>
+      <div class="tab" onclick="switchTab('users')">👥 Users</div>
+      <div class="tab" onclick="switchTab('songs')">🎵 Songs</div>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overviewTab" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-value" id="totalUsers">Loading...</div>
+          <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="activeUsers">Loading...</div>
+          <div class="stat-label">Active Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎵</div>
+          <div class="stat-value" id="totalSongs">Loading...</div>
+          <div class="stat-label">Total Songs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">▶️</div>
+          <div class="stat-value" id="totalPlays">Loading...</div>
+          <div class="stat-label">Total Plays</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎭</div>
+          <div class="stat-value" id="totalEmotions">Loading...</div>
+          <div class="stat-label">Emotions Detected</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Tab -->
+    <div id="usersTab" class="tab-content" style="display: none;">
+      <div class="card">
+        <div class="card-title">👥 Registered Users</div>
+        <div style="overflow-x: auto;">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th style="width: 25%">Email</th>
+                <th style="width: 20%">Name</th>
+                <th style="width: 15%">Registered</th>
+                <th style="width: 15%">Status</th>
+                <th style="width: 25%">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr>
+                <td colspan="5" class="loading">Loading users...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div class="modal" id="userModal">
+      <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+          <div class="modal-title" id="modalUserName">User Details</div>
+          <button class="close-modal" onclick="closeUserModal()">✖</button>
+        </div>
+        <div class="modal-body">
+          <!-- User Info -->
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-title">📋 User Information</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div>
+                <strong>Email:</strong>
+                <div id="modalUserEmail" style="color: #a2a9b8;"></div>
+              </div>
+              <div>
+                <strong>Status:</strong>
+                <div id="modalUserStatus"></div>
+              </div>
+              <div>
+                <strong>Registered:</strong>
+                <div id="modalUserRegistered" style="color: #a2a9b8;"></div>
+              </div>
+              <div>
+                <strong>Last Login:</strong>
+                <div id="modalUserLastLogin" style="color: #a2a9b8;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Time Period Selector -->
+          <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div class="card-title" style="margin: 0;">📊 Activity Analytics</div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-small" id="weeklyBtn" onclick="changeTimePeriod('weekly')" 
+                        style="background: linear-gradient(135deg, #ec4899, #db2777); color: white;">
+                  Weekly
+                </button>
+                <button class="btn btn-small btn-secondary" id="monthlyBtn" onclick="changeTimePeriod('monthly')">
+                  Monthly
+                </button>
+              </div>
+            </div>
+            
+            <!-- Listening Activity Chart -->
+            <div style="margin-bottom: 24px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: #a2a9b8;">🎵 Listening Activity</h4>
+              <canvas id="listeningChart" height="80"></canvas>
+            </div>
+
+            <!-- Emotion Distribution Chart -->
+            <div>
+              <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: #a2a9b8;">🎭 Emotion Distribution</h4>
+              <canvas id="emotionChart" height="80"></canvas>
+            </div>
+          </div>
+
+          <!-- Recent Activity Lists -->
+          <div class="grid-2" style="margin-bottom: 20px;">
+            <!-- Emotion History -->
+            <div class="card">
+              <div class="card-title">🎭 Recent Emotions (Last 10)</div>
+              <div id="emotionHistory" style="max-height: 300px; overflow-y: auto;">
+                <div class="loading">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Recently Played -->
+            <div class="card">
+              <div class="card-title">🎵 Recently Played (Last 10)</div>
+              <div id="recentlyPlayed" style="max-height: 300px; overflow-y: auto;">
+                <div class="loading">Loading...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Change Password -->
+          <div class="card">
+            <div class="card-title">🔒 Change Password</div>
+            <form id="changePasswordForm" onsubmit="changeUserPassword(event)">
+              <div class="grid-2">
+                <div class="form-group">
+                  <label>New Password *</label>
+                  <input type="password" id="newPassword" required minlength="8" placeholder="Minimum 8 characters" />
+                </div>
+                <div class="form-group">
+                  <label>Confirm Password *</label>
+                  <input type="password" id="confirmPassword" required placeholder="Re-enter password" />
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">Update Password</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Songs Tab -->
+    <div id="songsTab" class="tab-content" style="display: none;">
+      <div class="card">
+        <div class="card-title">➕ Add New Song</div>
+        <form id="addSongForm">
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Title *</label>
+              <input type="text" id="songTitle" required placeholder="Song title" />
+            </div>
+            <div class="form-group">
+              <label>Artist *</label>
+              <input type="text" id="songArtist" required placeholder="Artist name" />
+            </div>
+          </div>
+           <!-- NEW LANGUAGE FIELD -->
+           <!-- LANGUAGE FIELD - TYPE DIRECTLY -->
+           <div class="form-group">
+              <label>Language *</label>
+              <input type="text" id="songLanguage" required placeholder="e.g., English, Hindi, Punjabi, etc." />
+              </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label>Artist Photo (Upload or URL)</label>
+              <input type="file" id="artistPhotoFile" accept="image/*" style="margin-bottom: 8px;" />
+              <input type="url" id="artistPhotoUrl" placeholder="Or paste image URL: https://..." />
+              <div id="artistPhotoPreview" style="margin-top: 8px;"></div>
+            </div>
+            <div class="form-group">
+              <label>Album/Cover Art (Upload or URL)</label>
+              <input type="file" id="coverImageFile" accept="image/*" style="margin-bottom: 8px;" />
+              <input type="url" id="songCoverUrl" placeholder="Or paste image URL: https://..." />
+              <div id="coverImagePreview" style="margin-top: 8px;"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Song Audio File (Upload or URL) *</label>
+            <input type="file" id="audioFile" accept="audio/*" style="margin-bottom: 8px;" />
+            <input type="url" id="songAudioUrl" placeholder="Or paste audio URL: https://...mp3" />
+            <div id="audioFileInfo" style="margin-top: 8px; color: #a2a9b8; font-size: 0.875rem;"></div>
+          </div>
+
+          
+
+          <div class="form-group">
+            <label>Select Emotions * (Choose at least one)</label>
+            <div class="checkbox-group" id="emotionCheckboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" value="happy" />
+                <span>😊 Happy</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="sad" />
+                <span>😢 Sad</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="angry" />
+                <span>😠 Angry</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="surprise" />
+                <span>😲 Surprise</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="fear" />
+                <span>😨 Fear</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="disgust" />
+                <span>🤢 Disgust</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" value="neutral" />
+                <span>😐 Neutral</span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Add Song</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎵 All Songs in Database</div>
+        <div class="track-list" id="songsList">
+          <div class="loading">Loading songs...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Song Modal -->
+    <div class="modal" id="editSongModal">
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <div class="modal-title">✏️ Edit Song</div>
+          <button class="close-modal" onclick="closeEditSongModal()">✖</button>
+        </div>
+        <div class="modal-body">
+          <form id="editSongForm" onsubmit="updateSong(event)">
+            <input type="hidden" id="editSongId" />
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Title *</label>
+                <input type="text" id="editSongTitle" required placeholder="Song title" />
+              </div>
+              <div class="form-group">
+                <label>Artist *</label>
+                <input type="text" id="editSongArtist" required placeholder="Artist name" />
+              </div>
+            </div>
+            
+            <!-- LANGUAGE FIELD - TYPE DIRECTLY -->
+<div class="form-group">
+  <label>Language *</label>
+  <input type="text" id="editSongLanguage" required placeholder="e.g., English, Hindi, Punjabi, etc." />
+</div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Cover Image URL</label>
+                <input type="url" id="editSongCoverUrl" placeholder="https://..." />
+                <div id="editCoverPreview" style="margin-top: 8px;"></div>
+              </div>
+              <div class="form-group">
+                <label>Artist Photo URL</label>
+                <input type="url" id="editArtistPhotoUrl" placeholder="https://..." />
+                <div id="editArtistPreview" style="margin-top: 8px;"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Audio URL</label>
+              <input type="url" id="editSongAudioUrl" placeholder="https://...mp3" />
+            </div>
+
+            <div class="form-group">
+              <label>Select Emotions *</label>
+              <div class="checkbox-group" id="editEmotionCheckboxes">
+                <label class="checkbox-label">
+                  <input type="checkbox" value="happy" />
+                  <span>😊 Happy</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="sad" />
+                  <span>😢 Sad</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="angry" />
+                  <span>😠 Angry</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="surprise" />
+                  <span>😲 Surprise</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="fear" />
+                  <span>😨 Fear</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="disgust" />
+                  <span>🤢 Disgust</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" value="neutral" />
+                  <span>😐 Neutral</span>
+                </label>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+              <button type="submit" class="btn btn-primary" style="flex: 1;">Update Song</button>
+              <button type="button" class="btn btn-secondary" onclick="closeEditSongModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'overview';
+    let allUsers = [];
+    let allSongs = [];
+
+    // Check if admin on page load
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(user => {
+        if (!user.isAdmin) {
+          showNotification('❌ Admin access denied');
+          setTimeout(() => window.location.href = '/home', 1000);
+        } else {
+          console.log('✓ Admin authenticated:', user.email);
+          loadAllData();
+        }
+      })
+      .catch(() => {
+        window.location.href = '/login';
+      });
+
+    // Load all data
+    async function loadAllData() {
+      await Promise.all([
+        loadStats(),
+        loadUsers(),
+        loadSongs()
+      ]);
+    }
+
+    // Load statistics
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/admin/stats');
+        const stats = await response.json();
+        
+        document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+        document.getElementById('activeUsers').textContent = stats.activeUsers || 0;
+        document.getElementById('totalSongs').textContent = stats.totalSongs || 0;
+        document.getElementById('totalPlays').textContent = stats.totalPlays || 0;
+        document.getElementById('totalEmotions').textContent = stats.totalEmotions || 0;
+      } catch (error) {
+        console.error('Error loading stats:', error);
+        showNotification('❌ Error loading statistics');
+      }
+    }
+
+    // Load users from database
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/admin/users');
+        allUsers = await response.json();
+        renderUsers();
+      } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('userTableBody').innerHTML = 
+          '<tr><td colspan="5" class="empty-state">Error loading users</td></tr>';
+      }
+    }
+
+    // Render users table
+    function renderUsers() {
+      const tbody = document.getElementById('userTableBody');
+      
+      if (allUsers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users registered yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = allUsers.map(user => `
+        <tr>
+          <td style="word-break: break-all;">${user.email}</td>
+          <td>${user.firstName} ${user.lastName}</td>
+          <td>${formatDate(user.createdAt)}</td>
+          <td>
+            <span class="status-badge ${user.isActive ? 'status-active' : 'status-inactive'}">
+              ${user.isActive ? '✅ Active' : '🚫 Inactive'}
+            </span>
+            ${user.isAdmin ? '<span class="status-badge" style="background: rgba(236,72,153,0.2); color: #ec4899;">👑 Admin</span>' : ''}
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn btn-secondary btn-small" onclick="viewUserDetails(${user.id})">
+                👁️ View
+              </button>
+              ${!user.isAdmin ? `
+                <button class="btn ${user.isActive ? 'btn-danger' : 'btn-success'} btn-small" 
+                        onclick="toggleUserStatus(${user.id}, ${user.isActive})">
+                  ${user.isActive ? 'Disable' : 'Enable'}
+                </button>
+              ` : '<span style="color: #a2a9b8; font-size: 0.875rem;">Protected</span>'}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Toggle user status
+    async function toggleUserStatus(userId, currentStatus) {
+      const action = currentStatus ? 'disable' : 'enable';
+      if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/toggle-status`, {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showNotification(`✅ User ${action}d successfully`);
+          await loadUsers();
+          await loadStats();
+        } else {
+          showNotification('❌ Failed to update user status');
+        }
+      } catch (error) {
+        console.error('Error toggling user status:', error);
+        showNotification('❌ Error updating user');
+      }
+    }
+
+    // Load songs from MongoDB
+    async function loadSongs() {
+      try {
+        const response = await fetch('/api/songs');
+        allSongs = await response.json();
+        renderSongs();
+      } catch (error) {
+        console.error('Error loading songs:', error);
+        document.getElementById('songsList').innerHTML = 
+          '<div class="empty-state">Error loading songs</div>';
+      }
+    }
+
+    // Render songs list
+    function renderSongs() {
+      const songsList = document.getElementById('songsList');
+      
+      if (allSongs.length === 0) {
+        songsList.innerHTML = '<div class="empty-state">No songs added yet. Add your first song above!</div>';
+        return;
+      }
+
+      songsList.innerHTML = allSongs.map(song => `
+  <div class="track-item">
+    <div class="track-info">
+      <div class="track-title">${song.title}</div>
+      <div class="track-meta">${song.artist} • ${song.language || 'English'} • Emotions: ${song.emotions.join(', ')}</div>
+    </div>
+    <div class="track-actions">
+      <button class="btn btn-secondary btn-small" onclick="openEditSongModal('${song._id}')">
+        ✏️ Edit
+      </button>
+      <button class="btn btn-danger btn-small" onclick="deleteSong('${song._id}', '${song.title}')">
+        Delete
+      </button>
+    </div>
+  </div>
+`).join('');
+
+    }
+
+    // Add song form submission
+    document.getElementById('addSongForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const title = document.getElementById('songTitle').value.trim();
+      const artist = document.getElementById('songArtist').value.trim();
+      const language = document.getElementById('songLanguage').value;  // NEW LINE
+      // Get emotions
+      const emotions = Array.from(document.querySelectorAll('#emotionCheckboxes input:checked'))
+        .map(cb => cb.value);
+
+      if (emotions.length === 0) {
+        showNotification('⚠️ Please select at least one emotion');
+        return;
+      }
+
+      showNotification('⏳ Uploading song... Please wait');
+
+      try {
+        // Prepare form data for file upload
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('artist', artist);
+        formData.append('language', language);  // NEW LINE
+        formData.append('emotions', JSON.stringify(emotions));
+
+        // Handle audio file or URL
+        const audioFile = document.getElementById('audioFile').files[0];
+        const audioUrl = document.getElementById('songAudioUrl').value.trim();
+        
+        if (audioFile) {
+          formData.append('audioFile', audioFile);
+        } else if (audioUrl) {
+          formData.append('audioUrl', audioUrl);
+        } else {
+          showNotification('⚠️ Please provide an audio file or URL');
+          return;
+        }
+
+        // Handle cover image file or URL
+        const coverFile = document.getElementById('coverImageFile').files[0];
+        const coverUrl = document.getElementById('songCoverUrl').value.trim();
+        
+        if (coverFile) {
+          formData.append('coverFile', coverFile);
+        } else if (coverUrl) {
+          formData.append('coverUrl', coverUrl);
+        } else {
+          formData.append('coverUrl', `https://picsum.photos/400/400?random=${Date.now()}`);
+        }
+
+        // Handle artist photo file or URL
+        const artistPhotoFile = document.getElementById('artistPhotoFile').files[0];
+        const artistPhotoUrl = document.getElementById('artistPhotoUrl').value.trim();
+        
+        if (artistPhotoFile) {
+          formData.append('artistPhotoFile', artistPhotoFile);
+        } else if (artistPhotoUrl) {
+          formData.append('artistPhotoUrl', artistPhotoUrl);
+        }
+
+        const response = await fetch('/api/songs/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showNotification('✅ Song added successfully!');
+          document.getElementById('addSongForm').reset();
+          document.getElementById('audioFileInfo').textContent = '';
+          document.getElementById('coverImagePreview').innerHTML = '';
+          document.getElementById('artistPhotoPreview').innerHTML = '';
+          await loadSongs();
+          await loadStats();
+        } else {
+          showNotification('❌ ' + (data.error || 'Failed to add song'));
+        }
+      } catch (error) {
+        console.error('Error adding song:', error);
+        showNotification('❌ Error adding song: ' + error.message);
+      }
+    });
+
+    // File input preview handlers
+    document.getElementById('audioFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        document.getElementById('audioFileInfo').textContent = 
+          `📁 ${file.name} (${sizeMB} MB)`;
+      }
+    });
+
+    document.getElementById('coverImageFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('coverImagePreview').innerHTML = 
+            `<img src="${event.target.result}" class="image-preview" alt="Cover preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    document.getElementById('artistPhotoFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('artistPhotoPreview').innerHTML = 
+            `<img src="${event.target.result}" class="image-preview" alt="Artist preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // URL input preview handlers
+    document.getElementById('songCoverUrl').addEventListener('blur', function(e) {
+      const url = e.target.value.trim();
+      if (url) {
+        document.getElementById('coverImagePreview').innerHTML = 
+          `<img src="${url}" class="image-preview" alt="Cover preview" onerror="this.style.display='none'" />`;
+      }
+    });
+
+    document.getElementById('artistPhotoUrl').addEventListener('blur', function(e) {
+      const url = e.target.value.trim();
+      if (url) {
+        document.getElementById('artistPhotoPreview').innerHTML = 
+          `<img src="${url}" class="image-preview" alt="Artist preview" onerror="this.style.display='none'" />`;
+      }
+    });
+
+    // Delete song
+    async function deleteSong(songId, songTitle) {
+      if (!confirm(`Are you sure you want to delete "${songTitle}"?`)) return;
+      
+      try {
+        const response = await fetch(`/api/songs/${songId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showNotification('🗑️ Song deleted successfully');
+          await loadSongs();
+          await loadStats();
+        } else {
+          showNotification('❌ Failed to delete song');
+        }
+      } catch (error) {
+        console.error('Error deleting song:', error);
+        showNotification('❌ Error deleting song');
+      }
+    }
+
+    // Open edit song modal
+    function openEditSongModal(songId) {
+      const song = allSongs.find(s => s._id === songId);
+      if (!song) return;
+
+      // Fill form with song data
+      document.getElementById('editSongId').value = song._id;
+      document.getElementById('editSongTitle').value = song.title;
+      document.getElementById('editSongArtist').value = song.artist;
+      document.getElementById('editSongCoverUrl').value = song.coverUrl || '';
+      document.getElementById('editArtistPhotoUrl').value = song.artistPhotoUrl || '';
+      document.getElementById('editSongAudioUrl').value = song.audioUrl || '';
+      document.getElementById('editSongLanguage').value = song.language || 'English';  // NEW LINE
+      // Check emotions
+      document.querySelectorAll('#editEmotionCheckboxes input[type="checkbox"]').forEach(cb => {
+        cb.checked = song.emotions.includes(cb.value);
+      });
+
+      // Show previews if URLs exist
+      if (song.coverUrl) {
+        document.getElementById('editCoverPreview').innerHTML = 
+          `<img src="${song.coverUrl}" class="image-preview" alt="Cover" onerror="this.style.display='none'" />`;
+      }
+      if (song.artistPhotoUrl) {
+        document.getElementById('editArtistPreview').innerHTML = 
+          `<img src="${song.artistPhotoUrl}" class="image-preview" alt="Artist" onerror="this.style.display='none'" />`;
+      }
+
+      // Show modal
+      document.getElementById('editSongModal').classList.add('active');
+    }
+
+    // Close edit song modal
+    function closeEditSongModal() {
+      document.getElementById('editSongModal').classList.remove('active');
+      document.getElementById('editSongForm').reset();
+      document.getElementById('editCoverPreview').innerHTML = '';
+      document.getElementById('editArtistPreview').innerHTML = '';
+    }
+
+    // Update song
+    async function updateSong(event) {
+      event.preventDefault();
+
+      const songId = document.getElementById('editSongId').value;
+      const title = document.getElementById('editSongTitle').value.trim();
+      const artist = document.getElementById('editSongArtist').value.trim();
+      const coverUrl = document.getElementById('editSongCoverUrl').value.trim();
+      const artistPhotoUrl = document.getElementById('editArtistPhotoUrl').value.trim();
+      const language = document.getElementById('editSongLanguage').value;  // NEW LINE
+      const audioUrl = document.getElementById('editSongAudioUrl').value.trim();
+
+      const emotions = Array.from(document.querySelectorAll('#editEmotionCheckboxes input:checked'))
+        .map(cb => cb.value);
+
+      if (emotions.length === 0) {
+        showNotification('⚠️ Please select at least one emotion');
+        return;
+      }
+
+      try {
+        showNotification('⏳ Updating song...');
+
+        const response = await fetch(`/api/songs/${songId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title,
+            artist,
+            language,
+            coverUrl: coverUrl || undefined,
+            artistPhotoUrl: artistPhotoUrl || undefined,
+            audioUrl: audioUrl || undefined,
+            emotions
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showNotification('✅ Song updated successfully!');
+          closeEditSongModal();
+          await loadSongs();
+          await loadStats();
+        } else {
+          showNotification('❌ ' + (data.error || 'Failed to update song'));
+        }
+      } catch (error) {
+        console.error('Error updating song:', error);
+        showNotification('❌ Error updating song');
+      }
+    }
+
+    // Preview handlers for edit modal
+    document.getElementById('editSongCoverUrl').addEventListener('blur', function(e) {
+      const url = e.target.value.trim();
+      if (url) {
+        document.getElementById('editCoverPreview').innerHTML = 
+          `<img src="${url}" class="image-preview" alt="Cover preview" onerror="this.style.display='none'" />`;
+      }
+    });
+
+    document.getElementById('editArtistPhotoUrl').addEventListener('blur', function(e) {
+      const url = e.target.value.trim();
+      if (url) {
+        document.getElementById('editArtistPreview').innerHTML = 
+          `<img src="${url}" class="image-preview" alt="Artist preview" onerror="this.style.display='none'" />`;
+      }
+    });
+
+    // Close modal on outside click
+    document.getElementById('editSongModal').addEventListener('click', function(e) {
+      if (e.target.id === 'editSongModal') {
+        closeEditSongModal();
+      }
+    });
+
+    // Tab switching
+    function switchTab(tab) {
+      currentTab = tab;
+      
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+      
+      if (tab === 'overview') {
+        document.getElementById('overviewTab').style.display = 'block';
+      } else if (tab === 'users') {
+        document.getElementById('usersTab').style.display = 'block';
+      } else if (tab === 'songs') {
+        document.getElementById('songsTab').style.display = 'block';
+      }
+    }
+
+    // Refresh all data
+    async function refreshData() {
+      showNotification('🔄 Refreshing data...');
+      await loadAllData();
+      showNotification('✅ Data refreshed');
+    }
+
+    // Logout
+    async function handleLogout() {
+      if (!confirm('Are you sure you want to logout?')) return;
+
+      try {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showNotification('✅ Logged out successfully');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 800);
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/login';
+      }
+    }
+
+    // Format date
+    function formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+
+    function formatDateTime(dateString) {
+      if (!dateString) return 'N/A';
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // View user details
+    let currentUserId = null;
+    let currentTimePeriod = 'weekly';
+    let listeningChart = null;
+    let emotionChartInstance = null;
+
+    async function viewUserDetails(userId) {
+      currentUserId = userId;
+      currentTimePeriod = 'weekly';
+      
+      const user = allUsers.find(u => u.id === userId);
+      if (!user) return;
+
+      // Set user info
+      document.getElementById('modalUserName').textContent = `${user.firstName} ${user.lastName}`;
+      document.getElementById('modalUserEmail').textContent = user.email;
+      document.getElementById('modalUserStatus').innerHTML = `
+        <span class="status-badge ${user.isActive ? 'status-active' : 'status-inactive'}">
+          ${user.isActive ? '✅ Active' : '🚫 Inactive'}
+        </span>
+      `;
+      document.getElementById('modalUserRegistered').textContent = formatDate(user.createdAt);
+      document.getElementById('modalUserLastLogin').textContent = formatDateTime(user.lastLogin);
+
+      // Clear password fields
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+
+      // Reset time period buttons
+      document.getElementById('weeklyBtn').style.background = 'linear-gradient(135deg, #ec4899, #db2777)';
+      document.getElementById('weeklyBtn').style.color = 'white';
+      document.getElementById('monthlyBtn').style.background = 'rgba(255,255,255,0.1)';
+      document.getElementById('monthlyBtn').style.color = 'white';
+
+      // Show modal
+      document.getElementById('userModal').classList.add('active');
+
+      // Load all data
+      await Promise.all([
+        loadUserActivityCharts(userId, 'weekly'),
+        loadUserEmotionHistory(userId),
+        loadUserRecentlyPlayed(userId)
+      ]);
+    }
+
+    // Change time period
+    async function changeTimePeriod(period) {
+      currentTimePeriod = period;
+      
+      // Update button styles
+      if (period === 'weekly') {
+        document.getElementById('weeklyBtn').style.background = 'linear-gradient(135deg, #ec4899, #db2777)';
+        document.getElementById('weeklyBtn').style.color = 'white';
+        document.getElementById('monthlyBtn').style.background = 'rgba(255,255,255,0.1)';
+        document.getElementById('monthlyBtn').style.color = 'white';
+      } else {
+        document.getElementById('monthlyBtn').style.background = 'linear-gradient(135deg, #ec4899, #db2777)';
+        document.getElementById('monthlyBtn').style.color = 'white';
+        document.getElementById('weeklyBtn').style.background = 'rgba(255,255,255,0.1)';
+        document.getElementById('weeklyBtn').style.color = 'white';
+      }
+      
+      await loadUserActivityCharts(currentUserId, period);
+    }
+
+    // Load user activity charts
+    async function loadUserActivityCharts(userId, period) {
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/activity-charts?period=${period}`);
+        const data = await response.json();
+
+        // Destroy existing charts
+        if (listeningChart) {
+          listeningChart.destroy();
+        }
+        if (emotionChartInstance) {
+          emotionChartInstance.destroy();
+        }
+
+        // Create Listening Activity Chart
+        const listeningCtx = document.getElementById('listeningChart').getContext('2d');
+        listeningChart = new Chart(listeningCtx, {
+          type: 'line',
+          data: {
+            labels: data.listeningActivity.labels,
+            datasets: [{
+              label: 'Songs Played',
+              data: data.listeningActivity.data,
+              backgroundColor: 'rgba(236, 72, 153, 0.2)',
+              borderColor: 'rgba(236, 72, 153, 1)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointBackgroundColor: '#ec4899',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#ec4899',
+                borderWidth: 1
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#a2a9b8',
+                  stepSize: 1
+                },
+                grid: {
+                  color: 'rgba(255, 255, 255, 0.1)'
+                }
+              },
+              x: {
+                ticks: {
+                  color: '#a2a9b8'
+                },
+                grid: {
+                  color: 'rgba(255, 255, 255, 0.1)'
+                }
+              }
+            }
+          }
+        });
+
+        // Create Emotion Distribution Chart
+        const emotionCtx = document.getElementById('emotionChart').getContext('2d');
+        emotionChartInstance = new Chart(emotionCtx, {
+          type: 'bar',
+          data: {
+            labels: data.emotionDistribution.labels,
+            datasets: [{
+              label: 'Times Detected',
+              data: data.emotionDistribution.data,
+              backgroundColor: [
+                'rgba(34, 197, 94, 0.7)',   // Happy - Green
+                'rgba(59, 130, 246, 0.7)',  // Sad - Blue
+                'rgba(239, 68, 68, 0.7)',   // Angry - Red
+                'rgba(245, 158, 11, 0.7)',  // Surprise - Orange
+                'rgba(168, 85, 247, 0.7)',  // Fear - Purple
+                'rgba(20, 184, 166, 0.7)',  // Disgust - Teal
+                'rgba(156, 163, 175, 0.7)'  // Neutral - Gray
+              ],
+              borderColor: [
+                'rgba(34, 197, 94, 1)',
+                'rgba(59, 130, 246, 1)',
+                'rgba(239, 68, 68, 1)',
+                'rgba(245, 158, 11, 1)',
+                'rgba(168, 85, 247, 1)',
+                'rgba(20, 184, 166, 1)',
+                'rgba(156, 163, 175, 1)'
+              ],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#ec4899',
+                borderWidth: 1
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#a2a9b8',
+                  stepSize: 1
+                },
+                grid: {
+                  color: 'rgba(255, 255, 255, 0.1)'
+                }
+              },
+              x: {
+                ticks: {
+                  color: '#a2a9b8'
+                },
+                grid: {
+                  color: 'rgba(255, 255, 255, 0.1)'
+                }
+              }
+            }
+          }
+        });
+
+      } catch (error) {
+        console.error('Error loading activity charts:', error);
+        showNotification('❌ Error loading charts');
+      }
+    }
+
+    // Load user emotion history
+    async function loadUserEmotionHistory(userId) {
+      const container = document.getElementById('emotionHistory');
+      container.innerHTML = '<div class="loading">Loading...</div>';
+
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/emotion-history?limit=10`);
+        const history = await response.json();
+
+        if (history.length === 0) {
+          container.innerHTML = '<div class="empty-state">No emotions detected yet.</div>';
+          return;
+        }
+
+        const emotionIcons = {
+          'happy': '😊', 'sad': '😢', 'angry': '😠', 
+          'surprise': '😲', 'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
+        };
+
+        container.innerHTML = history.map(item => `
+          <div class="history-item">
+            <div class="history-item-left">
+              <div class="history-item-icon">${emotionIcons[item.emotion.toLowerCase()] || '😊'}</div>
+              <div class="history-item-info">
+                <div class="history-item-title">${item.emotion}</div>
+                <div class="history-item-meta">${item.confidence.toFixed(1)}% confidence</div>
+              </div>
+            </div>
+            <div class="history-item-time">${formatDateTime(item.detectedAt)}</div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading emotion history:', error);
+        container.innerHTML = '<div class="empty-state">Error loading history</div>';
+      }
+    }
+
+    // Load user recently played
+    async function loadUserRecentlyPlayed(userId) {
+      const container = document.getElementById('recentlyPlayed');
+      container.innerHTML = '<div class="loading">Loading...</div>';
+
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/recently-played?limit=10`);
+        const history = await response.json();
+
+        if (history.length === 0) {
+          container.innerHTML = '<div class="empty-state">No songs played yet.</div>';
+          return;
+        }
+
+        container.innerHTML = history.map(item => `
+          <div class="history-item">
+            <div class="history-item-left">
+              <div class="history-item-icon">🎵</div>
+              <div class="history-item-info">
+                <div class="history-item-title">${item.songTitle}</div>
+                <div class="history-item-meta">${item.artist}</div>
+              </div>
+            </div>
+            <div class="history-item-time">${formatDateTime(item.playedAt)}</div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.error('Error loading recently played:', error);
+        container.innerHTML = '<div class="empty-state">Error loading history</div>';
+      }
+    }
+
+    // Close user modal
+    function closeUserModal() {
+      document.getElementById('userModal').classList.remove('active');
+      currentUserId = null;
+      
+      // Destroy charts
+      if (listeningChart) {
+        listeningChart.destroy();
+        listeningChart = null;
+      }
+      if (emotionChartInstance) {
+        emotionChartInstance.destroy();
+        emotionChartInstance = null;
+      }
+    }
+
+    // Change user password
+    async function changeUserPassword(event) {
+      event.preventDefault();
+
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (newPassword !== confirmPassword) {
+        showNotification('❌ Passwords do not match!');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        showNotification('❌ Password must be at least 8 characters!');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/users/${currentUserId}/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ newPassword })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showNotification('✅ Password changed successfully!');
+          document.getElementById('newPassword').value = '';
+          document.getElementById('confirmPassword').value = '';
+        } else {
+          showNotification('❌ ' + (data.error || 'Failed to change password'));
+        }
+      } catch (error) {
+        console.error('Error changing password:', error);
+        showNotification('❌ Error changing password');
+      }
+    }
+
+    // Close modal on outside click
+    document.getElementById('userModal').addEventListener('click', function(e) {
+      if (e.target.id === 'userModal') {
+        closeUserModal();
+      }
+    });
+
+    // Show notification
+    function showNotification(message) {
+      const existing = document.querySelector('.notification');
+      if (existing) existing.remove();
+      
+      const notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    }
+  </script>
+</body>
+</html>
