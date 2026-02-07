@@ -7,10 +7,10 @@ python-dotenv==1.0.1
 
 numpy==1.23.5
 opencv-python-headless==4.8.0.76
-tensorflow==2.12.0
 deepface==0.0.96
 
 pillow
 
 requests
+
 
