@@ -2032,7 +2032,11 @@ def initialize_app():
 
 initialize_app()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+    
     print("\n🌐 URLs:")
     print("   Main:   http://localhost:5000")
     print("   Login:  http://localhost:5000/login")
@@ -2041,4 +2045,5 @@ if __name__ == '__main__':
     print("   Admin:  http://localhost:5000/admin")
     print("="*60 + "\n")
     
+
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
