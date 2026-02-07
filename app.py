@@ -2044,8 +2044,6 @@ if __name__ == "__main__":
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
     print("="*60 + "\n")
-    
 
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
 
 
