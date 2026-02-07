@@ -26,6 +26,8 @@ app.secret_key = secrets.token_hex(32)
 CORS(app)
 load_dotenv()
 
+print("\n🔄 Loading Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
 
 # File upload configuration
 UPLOAD_FOLDER = 'static/uploads/'
@@ -675,16 +677,17 @@ def detect_emotion():
         
         print(f"🎭 {session['email']} - Detected: {dominant_emotion} ({confidence:.1f}%)")
         
-        # Save to history (SQLite)
+        # Save to history (PostgreSQL - FIXED)
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO emotion_history (user_id, email, emotion, confidence)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (session['user_id'], session['email'], dominant_emotion, confidence))
         conn.commit()
+        cursor.close()
         conn.close()
-        
+
         # Get songs from MongoDB
         songs = list(songs_collection.find({
             'emotions': {'$in': [dominant_emotion.lower()]}
@@ -744,10 +747,11 @@ def add_recently_played():
         
         cursor.execute('''
             INSERT INTO recently_played (user_id, email, song_id, song_title, artist)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
         ''', (session['user_id'], session['email'], song_id, song_title, artist))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({'success': True}), 201
@@ -766,12 +770,13 @@ def get_recently_played():
         cursor.execute('''
             SELECT song_id, song_title, artist, played_at
             FROM recently_played
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY played_at DESC
             LIMIT 50
         ''', (session['user_id'],))
         
         rows = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         history = []
@@ -784,12 +789,10 @@ def get_recently_played():
                 song_doc = songs_collection.find_one({'_id': ObjectId(song_id)})
                 
                 if song_doc:
-                    # Use real data from database
                     cover_url = song_doc.get('coverUrl', f'https://picsum.photos/400/400?random={song_id}')
                     audio_url = song_doc.get('audioUrl', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3')
                     artist_photo = song_doc.get('artistPhotoUrl', '')
                 else:
-                    # Fallback if song not found in MongoDB
                     cover_url = f'https://picsum.photos/400/400?random={song_id}'
                     audio_url = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
                     artist_photo = ''
@@ -804,10 +807,10 @@ def get_recently_played():
                 'songId': song_id,
                 'title': row['song_title'],
                 'artist': row['artist'],
-                'playedAt': row['played_at'],
-                'coverUrl': cover_url,  # ✅ Real cover from MongoDB
-                'audioUrl': audio_url,  # ✅ Real audio from MongoDB
-                'artistPhotoUrl': artist_photo  # ✅ Real artist photo from MongoDB
+                'playedAt': row['played_at'].isoformat() if row['played_at'] else None,
+                'coverUrl': cover_url,
+                'audioUrl': audio_url,
+                'artistPhotoUrl': artist_photo
             })
         
         return jsonify(history), 200
@@ -828,18 +831,19 @@ def get_emotion_history():
         cursor.execute('''
             SELECT emotion, confidence, detected_at
             FROM emotion_history
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY detected_at DESC
             LIMIT 50
         ''', (session['user_id'],))
         
         rows = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         history = [{
             'emotion': row['emotion'],
             'confidence': row['confidence'],
-            'detectedAt': row['detected_at']
+            'detectedAt': row['detected_at'].isoformat() if row['detected_at'] else None
         } for row in rows]
         
         return jsonify(history), 200
@@ -1169,7 +1173,7 @@ def toggle_user_status(user_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         
         if not user:
@@ -1177,7 +1181,7 @@ def toggle_user_status(user_id):
             return jsonify({'error': 'User not found'}), 404
         
         new_status = 0 if user['is_active'] else 1
-        cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+        cursor.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
         conn.commit()
         conn.close()
         
@@ -1201,7 +1205,7 @@ def get_admin_stats():
         total_users = cursor.fetchone()['count']
         
         # Active users
-        cursor.execute('SELECT COUNT(*) as count FROM users WHERE is_active = 1')
+        cursor.execute('SELECT COUNT(*) as count FROM users WHERE is_active = TRUE')
         active_users = cursor.fetchone()['count']
         
         # Total plays
@@ -1212,6 +1216,7 @@ def get_admin_stats():
         cursor.execute('SELECT COUNT(*) as count FROM emotion_history')
         total_emotions = cursor.fetchone()['count']
         
+        cursor.close()
         conn.close()
         
         # Total songs from MongoDB
@@ -1241,7 +1246,7 @@ def get_user_emotion_history(user_id):
         cursor.execute('''
             SELECT emotion, confidence, detected_at
             FROM emotion_history
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY detected_at DESC
             LIMIT ?
         ''', (user_id, limit))
@@ -1273,7 +1278,7 @@ def get_user_recently_played(user_id):
         cursor.execute('''
             SELECT song_id, song_title, artist, played_at
             FROM recently_played
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY played_at DESC
             LIMIT ?
         ''', (user_id, limit))
@@ -1332,8 +1337,8 @@ def get_user_activity_charts(user_id):
             cursor.execute('''
                 SELECT COUNT(*) as count
                 FROM recently_played
-                WHERE user_id = ?
-                AND DATE(played_at) = ?
+                WHERE user_id = %s
+                AND DATE(played_at) = %s
             ''', (user_id, date_str))
             result = cursor.fetchone()
             listening_data.append(result['count'] if result else 0)
@@ -1342,8 +1347,8 @@ def get_user_activity_charts(user_id):
         cursor.execute('''
             SELECT emotion, COUNT(*) as count
             FROM emotion_history
-            WHERE user_id = ?
-            AND DATE(detected_at) >= DATE('now', '-' || ? || ' days')
+            WHERE user_id = %s
+            AND DATE(detected_at) >= DATE('now', '-' || %s || ' days')
             GROUP BY emotion
             ORDER BY count DESC
         ''', (user_id, days))
@@ -1402,7 +1407,7 @@ def change_user_password(user_id):
         cursor = conn.cursor()
         
         # Check if user exists
-        cursor.execute('SELECT id, email FROM users WHERE id = ?', (user_id,))
+        cursor.execute('SELECT id, email FROM users WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         
         if not user:
@@ -1412,7 +1417,7 @@ def change_user_password(user_id):
         # Update password
         password_hash = hash_password(new_password)
         cursor.execute('''
-            UPDATE users SET password_hash = ? WHERE id = ?
+            UPDATE users SET password_hash = %s WHERE id = %s
         ''', (password_hash, user_id))
         
         conn.commit()
@@ -1443,14 +1448,13 @@ def delete_recently_played():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Delete the specific entry
         cursor.execute('''
             DELETE FROM recently_played
-            WHERE user_id = ? AND song_id = ? AND played_at = ?
-            LIMIT 1
+            WHERE user_id = %s AND song_id = %s AND played_at = %s
         ''', (session['user_id'], song_id, played_at))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ History item deleted by {session['email']}")
@@ -1470,14 +1474,14 @@ def clear_recently_played():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Delete all history for this user
         cursor.execute('''
             DELETE FROM recently_played
-            WHERE user_id = ?
+            WHERE user_id = %s
         ''', (session['user_id'],))
         
         deleted_count = cursor.rowcount
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ All history cleared by {session['email']} ({deleted_count} items)")
@@ -1491,6 +1495,9 @@ def clear_recently_played():
     except Exception as e:
         print(f"Error clearing history: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+
 
 # ============================================================
 # FAVORITES (SQLite)
@@ -1507,7 +1514,7 @@ def get_favorites():
         cursor.execute('''
             SELECT song_id, song_title, artist, cover_url, audio_url, artist_photo_url, added_at
             FROM favorites
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY added_at DESC
         ''', (session['user_id'],))
         
@@ -1552,7 +1559,7 @@ def add_favorite():
         cursor = conn.cursor()
         
         # Check if already favorited
-        cursor.execute('SELECT id FROM favorites WHERE user_id = ? AND song_id = ?', 
+        cursor.execute('SELECT id FROM favorites WHERE user_id = %s AND song_id = %s', 
                       (session['user_id'], song_id))
         if cursor.fetchone():
             conn.close()
@@ -1561,7 +1568,7 @@ def add_favorite():
         # Add to favorites
         cursor.execute('''
             INSERT INTO favorites (user_id, song_id, song_title, artist, cover_url, audio_url, artist_photo_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (session['user_id'], song_id, song_title, artist, cover_url, audio_url, artist_photo_url))
         
         conn.commit()
@@ -1584,7 +1591,7 @@ def remove_favorite(song_id):
         
         cursor.execute('''
             DELETE FROM favorites
-            WHERE user_id = ? AND song_id = ?
+            WHERE user_id = %s AND song_id = %s
         ''', (session['user_id'], song_id))
         
         if cursor.rowcount == 0:
@@ -1609,7 +1616,7 @@ def check_favorite(song_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute('SELECT id FROM favorites WHERE user_id = ? AND song_id = ?',
+        cursor.execute('SELECT id FROM favorites WHERE user_id = %s AND song_id = %s',
                       (session['user_id'], song_id))
         is_favorited = cursor.fetchone() is not None
         
@@ -1641,8 +1648,8 @@ def update_profile():
         
         cursor.execute('''
             UPDATE users
-            SET first_name = ?, last_name = ?
-            WHERE id = ?
+            SET first_name = %s, last_name = %s
+            WHERE id = %s
         ''', (first_name, last_name, session['user_id']))
         
         conn.commit()
@@ -1687,7 +1694,7 @@ def change_password():
         
         # Verify current password
         cursor.execute('''
-            SELECT password_hash FROM users WHERE id = ?
+            SELECT password_hash FROM users WHERE id = %s
         ''', (session['user_id'],))
         
         user = cursor.fetchone()
@@ -1703,7 +1710,7 @@ def change_password():
         # Update password
         new_hash = hash_password(new_password)
         cursor.execute('''
-            UPDATE users SET password_hash = ? WHERE id = ?
+            UPDATE users SET password_hash = %s WHERE id = %s
         ''', (new_hash, session['user_id']))
         
         conn.commit()
@@ -1731,7 +1738,7 @@ def get_playlists():
         cursor.execute('''
             SELECT id, name, description, created_at, updated_at
             FROM playlists
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY updated_at DESC
         ''', (session['user_id'],))
         
@@ -1745,7 +1752,7 @@ def get_playlists():
             cursor.execute('''
                 SELECT song_id, song_title, artist, cover_url, audio_url, artist_photo_url
                 FROM playlist_songs
-                WHERE playlist_id = ?
+                WHERE playlist_id = %s
                 ORDER BY added_at ASC
             ''', (playlist_id,))
             
@@ -1794,7 +1801,7 @@ def create_playlist():
         
         cursor.execute('''
             INSERT INTO playlists (user_id, name, description)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (session['user_id'], name, description))
         
         playlist_id = cursor.lastrowid
@@ -1835,7 +1842,7 @@ def update_playlist(playlist_id):
         cursor = conn.cursor()
         
         # Check ownership
-        cursor.execute('SELECT user_id FROM playlists WHERE id = ?', (playlist_id,))
+        cursor.execute('SELECT user_id FROM playlists WHERE id = %s', (playlist_id,))
         playlist = cursor.fetchone()
         
         if not playlist:
@@ -1849,8 +1856,8 @@ def update_playlist(playlist_id):
         # Update playlist
         cursor.execute('''
             UPDATE playlists
-            SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET name = %s, description = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
         ''', (name, description, playlist_id))
         
         conn.commit()
@@ -1872,7 +1879,7 @@ def delete_playlist(playlist_id):
         cursor = conn.cursor()
         
         # Check ownership
-        cursor.execute('SELECT user_id, name FROM playlists WHERE id = ?', (playlist_id,))
+        cursor.execute('SELECT user_id, name FROM playlists WHERE id = %s', (playlist_id,))
         playlist = cursor.fetchone()
         
         if not playlist:
@@ -1884,7 +1891,7 @@ def delete_playlist(playlist_id):
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Delete playlist (cascade will delete songs)
-        cursor.execute('DELETE FROM playlists WHERE id = ?', (playlist_id,))
+        cursor.execute('DELETE FROM playlists WHERE id = %s', (playlist_id,))
         
         conn.commit()
         conn.close()
@@ -1917,7 +1924,7 @@ def add_song_to_playlist(playlist_id):
         cursor = conn.cursor()
         
         # Check ownership
-        cursor.execute('SELECT user_id FROM playlists WHERE id = ?', (playlist_id,))
+        cursor.execute('SELECT user_id FROM playlists WHERE id = %s', (playlist_id,))
         playlist = cursor.fetchone()
         
         if not playlist:
@@ -1929,7 +1936,7 @@ def add_song_to_playlist(playlist_id):
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Check if song already in playlist
-        cursor.execute('SELECT id FROM playlist_songs WHERE playlist_id = ? AND song_id = ?',
+        cursor.execute('SELECT id FROM playlist_songs WHERE playlist_id = %s AND song_id = %s',
                       (playlist_id, song_id))
         if cursor.fetchone():
             conn.close()
@@ -1938,12 +1945,12 @@ def add_song_to_playlist(playlist_id):
         # Add song to playlist
         cursor.execute('''
             INSERT INTO playlist_songs (playlist_id, song_id, song_title, artist, cover_url, audio_url, artist_photo_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (playlist_id, song_id, song_title, artist, cover_url, audio_url, artist_photo_url))
         
         # Update playlist updated_at
         cursor.execute('''
-            UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
         ''', (playlist_id,))
         
         conn.commit()
@@ -1965,7 +1972,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         cursor = conn.cursor()
         
         # Check ownership
-        cursor.execute('SELECT user_id FROM playlists WHERE id = ?', (playlist_id,))
+        cursor.execute('SELECT user_id FROM playlists WHERE id = %s', (playlist_id,))
         playlist = cursor.fetchone()
         
         if not playlist:
@@ -1979,7 +1986,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         # Remove song
         cursor.execute('''
             DELETE FROM playlist_songs
-            WHERE playlist_id = ? AND song_id = ?
+            WHERE playlist_id = ? AND song_id = %s
         ''', (playlist_id, song_id))
         
         if cursor.rowcount == 0:
@@ -1988,7 +1995,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         
         # Update playlist updated_at
         cursor.execute('''
-            UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            UPDATE playlists SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
         ''', (playlist_id,))
         
         conn.commit()
@@ -2042,7 +2049,3 @@ if __name__ == "__main__":
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
     print("="*60 + "\n")
-
-
-
-
