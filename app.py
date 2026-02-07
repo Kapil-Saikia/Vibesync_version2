@@ -27,7 +27,7 @@ CORS(app)
 load_dotenv()
 
 print("\n🔄 Loading Custom Emotion Detection Model...")
-MODEL_PATH = 'fer2013_best_model.keras'
+
 
 # File upload configuration
 UPLOAD_FOLDER = 'static/uploads/'
@@ -2048,4 +2048,5 @@ if __name__ == "__main__":
     print("   Signup: http://localhost:5000/signup")
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
+
     print("="*60 + "\n")
