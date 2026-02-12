@@ -20,6 +20,9 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from deepface import DeepFace
 from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -27,19 +30,20 @@ CORS(app)
 load_dotenv()
 
 print("\n🔄 Loading Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
 
+# Cloudinary configuration
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+    secure=True
+)
 
-# File upload configuration
-UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'flac'}
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_FILE_SIZE = 50 * 1024 * 1024
-
-os.makedirs(os.path.join(UPLOAD_FOLDER, 'audio'), exist_ok=True)
-os.makedirs(os.path.join(UPLOAD_FOLDER, 'covers'), exist_ok=True)
-os.makedirs(os.path.join(UPLOAD_FOLDER, 'artists'), exist_ok=True)
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+ 
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # ============================================================
@@ -306,15 +310,34 @@ def allowed_file(filename, file_type='audio'):
     return False
 
 def save_uploaded_file(file, folder):
-    """Save uploaded file and return the URL path"""
-    if file and allowed_file(file.filename, 'audio' if folder == 'audio' else 'image'):
-        filename = secure_filename(file.filename)
+    """Upload file to Cloudinary and return the URL"""
+    if not file or not allowed_file(file.filename, 'audio' if folder == 'audio' else 'image'):
+        return None
+    
+    try:
+        # Determine resource type
+        resource_type = 'video' if folder == 'audio' else 'image'  # Cloudinary uses 'video' for audio
+        
+        # Generate unique filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], folder, filename)
-        file.save(filepath)
-        return f'/static/uploads/{folder}/{filename}'
-    return None
+        original_filename = secure_filename(file.filename)
+        filename_without_ext = os.path.splitext(original_filename)[0]
+        public_id = f"vibesync/{folder}/{timestamp}_{filename_without_ext}"
+        
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            file,
+            public_id=public_id,
+            resource_type=resource_type,
+            folder=f"vibesync/{folder}"
+        )
+        
+        # Return the secure URL
+        return upload_result['secure_url']
+        
+    except Exception as e:
+        print(f"❌ Cloudinary upload error: {e}")
+        return None
 
 # ============================================================
 # AUTHENTICATION ROUTES (Update all queries)
@@ -1726,6 +1749,10 @@ def change_password():
 # PLAYLISTS (SQLite)
 # ============================================================
 
+# ============================================================
+# PLAYLISTS (PostgreSQL) - FIXED
+# ============================================================
+
 @app.route('/api/playlists', methods=['GET'])
 @login_required
 def get_playlists():
@@ -1772,10 +1799,11 @@ def get_playlists():
                 'name': playlist_row['name'],
                 'description': playlist_row['description'],
                 'songs': songs,
-                'createdAt': playlist_row['created_at'],
-                'updatedAt': playlist_row['updated_at']
+                'createdAt': playlist_row['created_at'].isoformat() if playlist_row['created_at'] else None,
+                'updatedAt': playlist_row['updated_at'].isoformat() if playlist_row['updated_at'] else None
             })
         
+        cursor.close()
         conn.close()
         return jsonify(playlists), 200
         
@@ -1799,16 +1827,24 @@ def create_playlist():
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Insert and get the returned ID
         cursor.execute('''
             INSERT INTO playlists (user_id, name, description)
             VALUES (%s, %s, %s)
+            RETURNING id, created_at, updated_at
         ''', (session['user_id'], name, description))
         
-        playlist_id = cursor.lastrowid
+        result = cursor.fetchone()
+        playlist_id = result['id']
+        created_at = result['created_at']
+        updated_at = result['updated_at']
+        
         conn.commit()
+        cursor.close()
         conn.close()
         
-        print(f"✓ Playlist created by {session['email']}: {name}")
+        print(f"✓ Playlist created by {session['email']}: {name} (ID: {playlist_id})")
+        
         return jsonify({
             'success': True,
             'playlist': {
@@ -1816,13 +1852,15 @@ def create_playlist():
                 'name': name,
                 'description': description,
                 'songs': [],
-                'createdAt': datetime.now().isoformat(),
-                'updatedAt': datetime.now().isoformat()
+                'createdAt': created_at.isoformat() if created_at else None,
+                'updatedAt': updated_at.isoformat() if updated_at else None
             }
         }), 201
         
     except Exception as e:
         print(f"Error creating playlist: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/playlists/<int:playlist_id>', methods=['PUT'])
@@ -1846,10 +1884,12 @@ def update_playlist(playlist_id):
         playlist = cursor.fetchone()
         
         if not playlist:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Unauthorized'}), 403
         
@@ -1861,6 +1901,7 @@ def update_playlist(playlist_id):
         ''', (name, description, playlist_id))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ Playlist updated by {session['email']}: {name}")
@@ -1883,10 +1924,12 @@ def delete_playlist(playlist_id):
         playlist = cursor.fetchone()
         
         if not playlist:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Unauthorized'}), 403
         
@@ -1894,6 +1937,7 @@ def delete_playlist(playlist_id):
         cursor.execute('DELETE FROM playlists WHERE id = %s', (playlist_id,))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ Playlist deleted by {session['email']}: {playlist['name']}")
@@ -1928,10 +1972,12 @@ def add_song_to_playlist(playlist_id):
         playlist = cursor.fetchone()
         
         if not playlist:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Unauthorized'}), 403
         
@@ -1939,6 +1985,7 @@ def add_song_to_playlist(playlist_id):
         cursor.execute('SELECT id FROM playlist_songs WHERE playlist_id = %s AND song_id = %s',
                       (playlist_id, song_id))
         if cursor.fetchone():
+            cursor.close()
             conn.close()
             return jsonify({'success': True, 'message': 'Song already in playlist'}), 200
         
@@ -1954,6 +2001,7 @@ def add_song_to_playlist(playlist_id):
         ''', (playlist_id,))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ Song added to playlist by {session['email']}: {song_title}")
@@ -1976,20 +2024,23 @@ def remove_song_from_playlist(playlist_id, song_id):
         playlist = cursor.fetchone()
         
         if not playlist:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Unauthorized'}), 403
         
-        # Remove song
+        # Remove song - FIXED: Use %s for both parameters
         cursor.execute('''
             DELETE FROM playlist_songs
-            WHERE playlist_id = ? AND song_id = %s
+            WHERE playlist_id = %s AND song_id = %s
         ''', (playlist_id, song_id))
         
         if cursor.rowcount == 0:
+            cursor.close()
             conn.close()
             return jsonify({'error': 'Song not found in playlist'}), 404
         
@@ -1999,6 +2050,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         ''', (playlist_id,))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         print(f"✓ Song removed from playlist by {session['email']}")
@@ -2048,5 +2100,4 @@ if __name__ == "__main__":
     print("   Signup: http://localhost:5000/signup")
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
-
     print("="*60 + "\n")
