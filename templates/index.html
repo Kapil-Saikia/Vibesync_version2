@@ -2993,6 +2993,15 @@ function updateVolumeUI() {
   }
 }
 
+function shareCurrentSong() {
+  if (currentSongIndex === -1) return;
+  const song = songs[currentSongIndex];
+  showNotification(`🔗 Sharing: ${song.title} by ${song.artist}`);
+}
+
+function openQueue() {
+  showNotification('☰ Queue view coming soon!');
+}
 
     // UI functions
     function handleSearch() {
@@ -6043,5 +6052,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
   </script>
 </body>
-
 </html>
