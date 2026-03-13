@@ -29,6 +29,8 @@ app.secret_key = secrets.token_hex(32)
 CORS(app)
 load_dotenv()
 
+print("\n🔄 Loading Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
 
 # Cloudinary configuration
 cloudinary.config(
@@ -115,6 +117,11 @@ def set_no_cache_headers(response):
         response.headers['Expires'] = '0'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    # Allow CORS for Cloudinary audio/image streams
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     
     return response
 
@@ -313,8 +320,8 @@ def save_uploaded_file(file, folder):
         return None
     
     try:
-        # Determine resource type
-        resource_type = 'video' if folder == 'audio' else 'image'  # Cloudinary uses 'video' for audio
+        # Determine resource type - use 'auto' for audio to let Cloudinary detect and optimize
+        resource_type = 'auto' if folder == 'audio' else 'image'
         
         # Generate unique filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -331,7 +338,9 @@ def save_uploaded_file(file, folder):
         )
         
         # Return the secure URL
-        return upload_result['secure_url']
+        secure_url = upload_result['secure_url']
+        print(f"✓ Uploaded to Cloudinary | Type: {folder} | Resource: {resource_type} | URL: {secure_url[:60]}...")
+        return secure_url
         
     except Exception as e:
         print(f"❌ Cloudinary upload error: {e}")
@@ -2098,5 +2107,4 @@ if __name__ == "__main__":
     print("   Signup: http://localhost:5000/signup")
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
-
     print("="*60 + "\n")
