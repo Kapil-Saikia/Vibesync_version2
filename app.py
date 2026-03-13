@@ -1,7 +1,5 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
-from tensorflow import keras
-import tensorflow as tf
 import numpy as np
 import base64
 import io
@@ -29,8 +27,6 @@ app.secret_key = secrets.token_hex(32)
 CORS(app)
 load_dotenv()
 
-print("\n🔄 Loading Custom Emotion Detection Model...")
-MODEL_PATH = 'fer2013_best_model.keras'
 
 # Cloudinary configuration
 cloudinary.config(
@@ -2107,4 +2103,5 @@ if __name__ == "__main__":
     print("   Signup: http://localhost:5000/signup")
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
+
     print("="*60 + "\n")
