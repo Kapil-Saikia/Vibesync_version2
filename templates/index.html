@@ -2501,7 +2501,25 @@ async function loadSongsFromDatabase() {
     
     songs = [...allSongs];
     
-    console.log(`✓ Loaded ${songs.length} songs from database`);
+    console.log(`✅ Loaded ${songs.length} songs from database`);
+    
+    // Debug: Log first song to check audio URL
+    if (songs.length > 0) {
+      const firstSong = songs[0];
+      console.log('🎵 First song data:', {
+        title: firstSong.title,
+        artist: firstSong.artist,
+        hasAudioUrl: !!firstSong.audioUrl,
+        audioUrl: firstSong.audioUrl ? firstSong.audioUrl.substring(0, 80) + '...' : 'MISSING',
+        isCloudinary: firstSong.audioUrl && (firstSong.audioUrl.includes('cloudinary') || firstSong.audioUrl.includes('res.cloudinary'))
+      });
+      
+      // Check for missing audio URLs
+      const missingAudioCount = songs.filter(s => !s.audioUrl).length;
+      if (missingAudioCount > 0) {
+        console.warn(`⚠️ ${missingAudioCount}/${songs.length} songs missing audioUrl`);
+      }
+    }
     
     // Extract unique artists
     const uniqueArtists = [...new Set(songs.map(s => s.artist))];
