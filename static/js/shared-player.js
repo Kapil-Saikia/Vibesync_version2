@@ -113,17 +113,29 @@ window.sharedAudioPlayer = {
         // Play audio – use ONLY the song's own URL so each track is unique
         const audioUrl = song.audioUrl || song.audio_url;
         if (!audioUrl) {
-            console.warn('No audio URL available for song:', song);
+            console.error('❌ No audio URL for song:', {
+                title: song.title,
+                artist: song.artist,
+                song: song
+            });
             if (window.showNotification) {
-                window.showNotification('⚠️ This song has no preview available');
+                window.showNotification('⚠️ This song has no audio URL - check admin panel');
             }
             this.isPlaying = false;
             this.updatePlayPauseButton();
             return;
         }
 
+        console.log('🎵 Playing:', {
+            title: song.title,
+            artist: song.artist,
+            audioUrl: audioUrl.substring(0, 80) + '...',
+            isCloudinary: audioUrl.includes('cloudinary') || audioUrl.includes('res.cloudinary')
+        });
+
         this.audio.src = audioUrl;
         this.audio.play().then(() => {
+            console.log('✅ Playback started successfully');
             this.isPlaying = true;
             this.updatePlayPauseButton();
             this.saveState();
@@ -131,7 +143,21 @@ window.sharedAudioPlayer = {
             // Track recently played
             this.trackRecentlyPlayed(song);
         }).catch(err => {
-            console.error('Audio playback error:', err);
+            console.error('❌ Audio playback error:', {
+                error: err.message,
+                errorCode: err.code,
+                audioUrl: audioUrl.substring(0, 80) + '...',
+                song: song.title
+            });
+            
+            // Show user-friendly error
+            if (window.showNotification) {
+                const errorMsg = err.name === 'NotAllowedError' 
+                    ? '⚠️ Playback blocked - try clicking play again'
+                    : '⚠️ Failed to load audio - check URL accessibility';
+                window.showNotification(errorMsg);
+            }
+            
             this.isPlaying = false;
             this.updatePlayPauseButton();
         });
