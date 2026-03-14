@@ -1,5 +1,7 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
+from tensorflow import keras
+import tensorflow as tf
 import numpy as np
 import base64
 import io
@@ -27,6 +29,8 @@ app.secret_key = secrets.token_hex(32)
 CORS(app)
 load_dotenv()
 
+print("\n🔄 Loading Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
 
 # Cloudinary configuration
 cloudinary.config(
@@ -250,6 +254,23 @@ def init_postgres():
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_playlist_songs_playlist ON playlist_songs(playlist_id)')
         
+        # Active sessions table (for single session per user)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS active_sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                session_id VARCHAR(255) UNIQUE NOT NULL,
+                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                device_info TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                invalidated_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_active_sessions_user_id ON active_sessions(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_active_sessions_is_active ON active_sessions(is_active)')
+        
         conn.commit()
         print("✓ PostgreSQL database initialized")
         
@@ -265,9 +286,88 @@ def init_postgres():
 # HELPER FUNCTIONS (Keep these as is)
 # ============================================================
 
+def generate_session_id():
+    """Generate a unique session ID"""
+    return secrets.token_urlsafe(32)
+
 def hash_password(password):
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+def invalidate_user_sessions(user_id):
+    """Invalidate all existing sessions for a user (for new login)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE active_sessions
+            SET is_active = FALSE, invalidated_at = CURRENT_TIMESTAMP
+            WHERE user_id = %s AND is_active = TRUE
+        ''', (user_id,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"✓ Invalidated all existing sessions for user_id: {user_id}")
+    except Exception as e:
+        print(f"❌ Error invalidating user sessions: {e}")
+
+def create_active_session(user_id, session_id, device_info=None):
+    """Create a new active session entry"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO active_sessions (user_id, session_id, device_info, is_active)
+            VALUES (%s, %s, %s, TRUE)
+        ''', (user_id, session_id, device_info))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"✓ Created active session for user_id: {user_id}")
+    except Exception as e:
+        print(f"❌ Error creating active session: {e}")
+
+def is_session_valid(user_id, session_id):
+    """Check if a session is still valid (not invalidated)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id FROM active_sessions
+            WHERE user_id = %s AND session_id = %s AND is_active = TRUE
+        ''', (user_id, session_id))
+        
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        return result is not None
+    except Exception as e:
+        print(f"❌ Error checking session validity: {e}")
+        return False
+
+def update_session_activity(user_id, session_id):
+    """Update last activity timestamp for a session"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE active_sessions
+            SET last_activity = CURRENT_TIMESTAMP
+            WHERE user_id = %s AND session_id = %s AND is_active = TRUE
+        ''', (user_id, session_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"❌ Error updating session activity: {e}")
 
 def serialize_song(song):
     """Convert MongoDB document to JSON-serializable dict"""
@@ -298,6 +398,40 @@ def admin_required(f):
         
         return f(*args, **kwargs)
     return decorated_function
+
+# ============================================================
+# SESSION VALIDATION MIDDLEWARE
+# ============================================================
+
+@app.before_request
+def validate_session():
+    """Validate session before each request - check if account logged in elsewhere"""
+    # Skip validation for login, signup, and static files
+    if request.path in ['/login', '/signup', '/'] or \
+       request.path.startswith('/static') or \
+       request.path.startswith('/api/auth/login') or \
+       request.path.startswith('/api/auth/signup'):
+        return
+    
+    # If user is logged in, validate their session is still active
+    if 'user_id' in session:
+        session_id = session.get('session_id')
+        user_id = session.get('user_id')
+        
+        if not session_id or not user_id:
+            return
+        
+        # Check if session is still valid
+        if not is_session_valid(user_id, session_id):
+            # Session was invalidated (user logged in elsewhere)
+            session.clear()
+            
+            if request.path.startswith('/api/'):
+                return jsonify({
+                    'error': 'Your account has been logged in elsewhere',
+                    'invalidated': True
+                }), 401
+            # For non-API routes, the front-end will handle the redirect
 
 def allowed_file(filename, file_type='audio'):
     """Check if file extension is allowed"""
@@ -395,12 +529,20 @@ def signup():
         cursor.close()
         conn.close()
         
+        # ===== NEW SINGLE SESSION LOGIC FOR SIGNUP =====
+        # Generate session ID and create active session
+        new_session_id = generate_session_id()
+        device_info = request.headers.get('User-Agent', 'Unknown')
+        create_active_session(user_id, new_session_id, device_info)
+        
+        # Store session data in Flask session
         session['user_id'] = user_id
         session['email'] = email
         session['first_name'] = first_name
         session['is_admin'] = False
+        session['session_id'] = new_session_id  # Store session ID for validation
         
-        print(f"✓ New user registered and logged in: {email}")
+        print(f"✓ New user registered and logged in: {email} | Single Session Enabled")
         
         return jsonify({
             'success': True,
@@ -464,14 +606,27 @@ def login():
         cursor.close()
         conn.close()
         
+        # ===== NEW SINGLE SESSION LOGIC =====
+        # 1. Invalidate all existing sessions for this user
+        invalidate_user_sessions(user['id'])
+        
+        # 2. Generate new session ID
+        new_session_id = generate_session_id()
+        
+        # 3. Create new active session in database
+        device_info = request.headers.get('User-Agent', 'Unknown')
+        create_active_session(user['id'], new_session_id, device_info)
+        
+        # 4. Store session data in Flask session
         session['user_id'] = user['id']
         session['email'] = user['email']
         session['first_name'] = user['first_name']
         session['is_admin'] = bool(user['is_admin'])
+        session['session_id'] = new_session_id  # Store session ID for validation
         
         redirect_url = '/admin' if user['is_admin'] else '/home'
         
-        print(f"✓ User logged in: {email} (Admin: {bool(user['is_admin'])})")
+        print(f"✓ User logged in: {email} (Admin: {bool(user['is_admin'])}) | Single Session Enabled")
         
         return jsonify({
             'success': True,
@@ -492,10 +647,45 @@ def login():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
-    """Logout user - clear all session data"""
+    """Logout user - strictly clear all session data and invalidate session"""
+    # Get user info before clearing (for logging if needed)
+    user_id = session.get('user_id')
+    session_id = session.get('session_id')
+    
+    # Invalidate the session in database (mark as inactive)
+    if user_id and session_id:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE active_sessions
+                SET is_active = FALSE, invalidated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND session_id = %s
+            ''', (user_id, session_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"✓ Session invalidated for user_id: {user_id}")
+        except Exception as e:
+            print(f"❌ Error invalidating session: {e}")
+    
+    # Completely clear all session data
     session.clear()
     session.permanent = False
-    return jsonify({'success': True, 'message': 'Logged out'}), 200
+    
+    # Explicitly set session as non-permanent to expire immediately
+    for key in list(session.keys()):
+        session.pop(key, None)
+    
+    # Return response with cache-control headers to prevent page caching
+    response = jsonify({'success': True, 'message': 'Logged out successfully'})
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
+    return response, 200
 
 @app.route('/api/auth/me', methods=['GET'])
 @login_required
@@ -1107,31 +1297,110 @@ def delete_song(song_id):
 @app.route('/api/songs/<song_id>', methods=['PUT'])
 @admin_required
 def update_song(song_id):
-    """Update song in MongoDB (admin only)"""
+    """Update song in MongoDB (admin only) - supports both JSON and FormData"""
     try:
-        data = request.get_json()
+        # Handle both FormData (multipart) and JSON requests
+        if request.is_json:
+            data = request.get_json()
+            title = data.get('title')
+            artist = data.get('artist')
+            language = data.get('language', 'English')
+            emotions = data.get('emotions', [])
+            audio_file = None
+            cover_file = None
+            artist_photo_file = None
+        else:
+            # FormData request
+            title = request.form.get('title')
+            artist = request.form.get('artist')
+            language = request.form.get('language', 'English')
+            emotions = request.form.get('emotions')
+            if emotions:
+                emotions = [e.strip() for e in emotions.strip('[]').split(',')]
+            else:
+                emotions = []
+            
+            # Get file uploads
+            audio_file = request.files.get('audioFile')
+            cover_file = request.files.get('coverFile')
+            artist_photo_file = request.files.get('artistPhotoFile')
         
-        if not data.get('title') or not data.get('artist'):
+        if not title or not artist:
             return jsonify({'error': 'Title and artist required'}), 400
         
-        if not data.get('emotions') or len(data.get('emotions', [])) == 0:
+        if not emotions or len(emotions) == 0:
             return jsonify({'error': 'At least one emotion required'}), 400
         
         # Build update document
         update_data = {
-            'title': data['title'],
-            'artist': data['artist'],
-            'emotions': [e.lower() for e in data['emotions']],
+            'title': title,
+            'artist': artist,
+            'language': language,
+            'emotions': [e.lower() for e in emotions],
             'updatedAt': datetime.utcnow()
         }
         
-        # Only update if provided
-        if data.get('coverUrl'):
-            update_data['coverUrl'] = data['coverUrl']
-        if data.get('artistPhotoUrl'):
-            update_data['artistPhotoUrl'] = data['artistPhotoUrl']
-        if data.get('audioUrl'):
-            update_data['audioUrl'] = data['audioUrl']
+        # Handle audio file upload
+        if audio_file:
+            secure_audio_filename = secure_filename(audio_file.filename)
+            if secure_audio_filename:
+                # Upload to Cloudinary
+                try:
+                    upload_result = cloudinary.uploader.upload(
+                        audio_file,
+                        resource_type='auto',
+                        folder='audio'
+                    )
+                    update_data['audioUrl'] = upload_result.get('secure_url')
+                    print(f"✓ Audio file updated to Cloudinary: {update_data['audioUrl'][:60]}...")
+                except Exception as e:
+                    print(f"Error uploading audio to Cloudinary: {e}")
+                    return jsonify({'error': f'Failed to upload audio file: {str(e)}'}), 500
+        elif request.form.get('audioUrl'):
+            # Update audio URL if provided
+            update_data['audioUrl'] = request.form.get('audioUrl')
+        
+        # Handle cover image file upload
+        if cover_file:
+            secure_cover_filename = secure_filename(cover_file.filename)
+            if secure_cover_filename:
+                try:
+                    upload_result = cloudinary.uploader.upload(
+                        cover_file,
+                        resource_type='image',
+                        folder='covers'
+                    )
+                    update_data['coverUrl'] = upload_result.get('secure_url')
+                    print(f"✓ Cover image updated to Cloudinary: {update_data['coverUrl'][:60]}...")
+                except Exception as e:
+                    print(f"Error uploading cover to Cloudinary: {e}")
+                    return jsonify({'error': f'Failed to upload cover image: {str(e)}'}), 500
+        elif request.form.get('coverUrl'):
+            # Update cover URL if provided
+            update_data['coverUrl'] = request.form.get('coverUrl')
+        elif request.get_json() and request.get_json().get('coverUrl'):
+            update_data['coverUrl'] = request.get_json().get('coverUrl')
+        
+        # Handle artist photo file upload
+        if artist_photo_file:
+            secure_artist_filename = secure_filename(artist_photo_file.filename)
+            if secure_artist_filename:
+                try:
+                    upload_result = cloudinary.uploader.upload(
+                        artist_photo_file,
+                        resource_type='image',
+                        folder='artists'
+                    )
+                    update_data['artistPhotoUrl'] = upload_result.get('secure_url')
+                    print(f"✓ Artist photo updated to Cloudinary: {update_data['artistPhotoUrl'][:60]}...")
+                except Exception as e:
+                    print(f"Error uploading artist photo to Cloudinary: {e}")
+                    return jsonify({'error': f'Failed to upload artist photo: {str(e)}'}), 500
+        elif request.form.get('artistPhotoUrl'):
+            # Update artist photo URL if provided
+            update_data['artistPhotoUrl'] = request.form.get('artistPhotoUrl')
+        elif request.get_json() and request.get_json().get('artistPhotoUrl'):
+            update_data['artistPhotoUrl'] = request.get_json().get('artistPhotoUrl')
         
         # Update in MongoDB
         result = songs_collection.update_one(
@@ -1142,7 +1411,7 @@ def update_song(song_id):
         if result.matched_count == 0:
             return jsonify({'error': 'Song not found'}), 404
         
-        print(f"✓ Song updated by {session['email']}: {data['title']}")
+        print(f"✓ Song updated by {session['email']}: {title}")
         
         return jsonify({
             'success': True,
@@ -1199,24 +1468,43 @@ def toggle_user_status(user_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Get current status
         cursor.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         
         if not user:
             conn.close()
-            return jsonify({'error': 'User not found'}), 404
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         
-        new_status = 0 if user['is_active'] else 1
+        # Toggle the status (flip boolean)
+        current_status = user['is_active']
+        new_status = not current_status
+        
+        # Update the status
         cursor.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
         conn.commit()
+        
+        # Verify the update
+        cursor.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
+        updated_user = cursor.fetchone()
         conn.close()
         
-        print(f"✓ User status toggled by {session['email']}: User ID {user_id} -> Active: {bool(new_status)}")
-        
-        return jsonify({'success': True, 'isActive': bool(new_status)}), 200
+        if updated_user and updated_user['is_active'] == new_status:
+            admin_email = session.get('email', 'Unknown')
+            action = 'enabled' if new_status else 'disabled'
+            print(f"✓ User {action} by {admin_email}: User ID {user_id}")
+            
+            return jsonify({
+                'success': True,
+                'isActive': updated_user['is_active'],
+                'message': f'User {action} successfully'
+            }), 200
+        else:
+            return jsonify({'success': False, 'error': 'Failed to update user status'}), 500
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error toggling user status: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/stats', methods=['GET'])
 @admin_required
@@ -1274,7 +1562,7 @@ def get_user_emotion_history(user_id):
             FROM emotion_history
             WHERE user_id = %s
             ORDER BY detected_at DESC
-            LIMIT ?
+            LIMIT %s
         ''', (user_id, limit))
         
         rows = cursor.fetchall()
@@ -1306,7 +1594,7 @@ def get_user_recently_played(user_id):
             FROM recently_played
             WHERE user_id = %s
             ORDER BY played_at DESC
-            LIMIT ?
+            LIMIT %s
         ''', (user_id, limit))
         
         rows = cursor.fetchall()
@@ -1369,15 +1657,18 @@ def get_user_activity_charts(user_id):
             result = cursor.fetchone()
             listening_data.append(result['count'] if result else 0)
         
+        # Calculate start date for emotion distribution
+        start_date = (today - timedelta(days=days)).strftime('%Y-%m-%d')
+        
         # Get emotion distribution
         cursor.execute('''
             SELECT emotion, COUNT(*) as count
             FROM emotion_history
             WHERE user_id = %s
-            AND DATE(detected_at) >= DATE('now', '-' || %s || ' days')
+            AND DATE(detected_at) >= %s
             GROUP BY emotion
             ORDER BY count DESC
-        ''', (user_id, days))
+        ''', (user_id, start_date))
         
         emotion_rows = cursor.fetchall()
         emotion_labels = []
@@ -2103,5 +2394,4 @@ if __name__ == "__main__":
     print("   Signup: http://localhost:5000/signup")
     print("   Home:   http://localhost:5000/home")
     print("   Admin:  http://localhost:5000/admin")
-
     print("="*60 + "\n")
