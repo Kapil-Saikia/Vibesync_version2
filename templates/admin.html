@@ -573,7 +573,36 @@
 
     <!-- Overview Tab -->
     <div id="overviewTab" class="tab-content">
-      <div class="stats-grid">
+      <!-- Skeleton Loaders for Stats -->
+      <div class="skeleton-admin-container" id="adminSkeletonContainer">
+        <div class="skeleton-stat-card">
+          <div class="skeleton-stat-icon skeleton"></div>
+          <div class="skeleton-stat-value skeleton"></div>
+          <div class="skeleton-stat-label skeleton"></div>
+        </div>
+        <div class="skeleton-stat-card">
+          <div class="skeleton-stat-icon skeleton"></div>
+          <div class="skeleton-stat-value skeleton"></div>
+          <div class="skeleton-stat-label skeleton"></div>
+        </div>
+        <div class="skeleton-stat-card">
+          <div class="skeleton-stat-icon skeleton"></div>
+          <div class="skeleton-stat-value skeleton"></div>
+          <div class="skeleton-stat-label skeleton"></div>
+        </div>
+        <div class="skeleton-stat-card">
+          <div class="skeleton-stat-icon skeleton"></div>
+          <div class="skeleton-stat-value skeleton"></div>
+          <div class="skeleton-stat-label skeleton"></div>
+        </div>
+        <div class="skeleton-stat-card">
+          <div class="skeleton-stat-icon skeleton"></div>
+          <div class="skeleton-stat-value skeleton"></div>
+          <div class="skeleton-stat-label skeleton"></div>
+        </div>
+      </div>
+      <!-- Actual Stats Grid -->
+      <div class="stats-grid" id="statsGrid" style="display: none;">
         <div class="stat-card">
           <div class="stat-icon">👥</div>
           <div class="stat-value" id="totalUsers">Loading...</div>
@@ -935,11 +964,28 @@
 
     // Load all data
     async function loadAllData() {
+      showAdminSkeletons();
       await Promise.all([
         loadStats(),
         loadUsers(),
         loadSongs()
       ]);
+      hideAdminSkeletons();
+    }
+
+    // ===== SKELETON LOADER FUNCTIONS FOR ADMIN =====
+    function showAdminSkeletons() {
+      const skeletonContainer = document.getElementById('adminSkeletonContainer');
+      const statsGrid = document.getElementById('statsGrid');
+      if (skeletonContainer) skeletonContainer.style.display = 'grid';
+      if (statsGrid) statsGrid.style.display = 'none';
+    }
+
+    function hideAdminSkeletons() {
+      const skeletonContainer = document.getElementById('adminSkeletonContainer');
+      const statsGrid = document.getElementById('statsGrid');
+      if (skeletonContainer) skeletonContainer.style.display = 'none';
+      if (statsGrid) statsGrid.style.display = 'grid';
     }
 
     // Load statistics
@@ -955,6 +1001,7 @@
         document.getElementById('totalEmotions').textContent = stats.totalEmotions || 0;
       } catch (error) {
         console.error('Error loading stats:', error);
+        hideAdminSkeletons();
         showNotification('❌ Error loading statistics');
       }
     }
