@@ -2376,12 +2376,43 @@
 
 
   <script>
+    // ===== GLOBAL API CALL WRAPPER (handles session invalidation automatically) =====
+    window.apiCall = async function(url, options = {}) {
+      try {
+        const response = await fetch(url, {
+          ...options,
+          credentials: 'same-origin'
+        });
+        
+        // Check if session was invalidated (account logged in elsewhere)
+        if (response.status === 401) {
+          const data = await response.json();
+          if (data.invalidated) {
+            handleSessionInvalidation(data.error);
+            return null;
+          }
+        }
+        
+        return response;
+      } catch (error) {
+        console.error('API call error:', error);
+        throw error;
+      }
+    };
+
    // Authentication check
 fetch('/api/auth/me')
   .then(res => {
       if (!res.ok) {
-          window.location.href = '/login';
-          throw new Error('Not authenticated');
+          // Check if this is a session invalidation error
+          return res.json().then(data => {
+            if (data.invalidated) {
+              handleSessionInvalidation(data.error);
+              throw new Error('Session invalidated');
+            }
+            window.location.href = '/login';
+            throw new Error('Not authenticated');
+          });
       }
       return res.json();
   })
@@ -3192,49 +3223,180 @@ function openQueue() {
     async function handleLogout() {
       if (confirm('Are you sure you want to logout?')) {
         try {
-          showNotification('Logging out...');
+          showNotification('🔒 Securely logging out...');
           
+          // Call logout API
           const response = await fetch('/api/auth/logout', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
-            }
+            },
+            credentials: 'same-origin'
           });
           
           const data = await response.json();
           
           if (data.success) {
-            // Clear all local storage and session storage
+            // ===== STRICT SESSION CLEANUP =====
+            
+            // 1. Stop and reset audio player
+            if (window.sharedAudioPlayer && window.sharedAudioPlayer.audio) {
+              window.sharedAudioPlayer.audio.pause();
+              window.sharedAudioPlayer.audio.src = '';
+              window.sharedAudioPlayer.currentSong = null;
+              window.sharedAudioPlayer.isPlaying = false;
+              window.sharedAudioPlayer.currentPlaylist = [];
+            }
+            
+            // 2. Clear all DOM data attributes
+            document.querySelectorAll('[data-user-id], [data-session-token]').forEach(el => {
+              el.removeAttribute('data-user-id');
+              el.removeAttribute('data-session-token');
+            });
+            
+            // 3. Clear all local storage
             localStorage.clear();
+            
+            // 4. Clear all session storage
             sessionStorage.clear();
             
-            // Replace current history entry to prevent back button
-            window.history.replaceState(null, null, '/login');
+            // 5. Clear all cookies (session cookies)
+            document.cookie.split(";").forEach((c) => {
+              document.cookie = c
+                .replace(/^ +/, "")
+                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
             
-            showNotification('✅ Logged out successfully');
-            setTimeout(() => {
-              // Force redirect and prevent back navigation
+            // 6. Clear global variables and cached user data
+            window.currentUser = null;
+            window.isLoggedIn = false;
+            window.userEmail = null;
+            window.userId = null;
+            window.isAdmin = false;
+            window.songs = [];
+            window.userHistory = [];
+            window.userFavorites = [];
+            
+            // 7. Disable service workers to prevent caching
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(reg => reg.unregister());
+              });
+            }
+            
+            // 8. Clear browser cache headers
+            fetch('/api/auth/logout', {
+              method: 'POST',
+              headers: {
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+              }
+            });
+            
+            // 9. Remove all event listeners (optional but secure)
+            document.querySelectorAll('[onclick]').forEach(el => {
+              el.removeAttribute('onclick');
+            });
+            
+            // 10. Clear history to prevent back button access
+            window.history.pushState(null, null, '/login');
+            window.addEventListener('popstate', (e) => {
+              e.preventDefault();
+              window.history.pushState(null, null, '/login');
               window.location.replace('/login');
+            });
+            
+            showNotification('✅ Logged out successfully - Session closed');
+            
+            // Force redirect with hard refresh to clear all cached data
+            setTimeout(() => {
+              window.location.replace('/login');
+              // Hard reload to clear browser cache
+              setTimeout(() => {
+                location.href = '/login';
+              }, 100);
             }, 800);
           } else {
-            showNotification('❌ Logout failed');
-            setTimeout(() => {
-              window.location.replace('/login');
-            }, 1000);
+            // Even if logout fails on API, still clear local data
+            console.warn('Logout API returned false, clearing local data anyway');
+            performStrictLocalLogout();
           }
           
         } catch (error) {
           console.error('Logout error:', error);
-          // Clear storage even on error
-          localStorage.clear();
-          sessionStorage.clear();
-          window.history.replaceState(null, null, '/login');
-          showNotification('Logging out...');
-          setTimeout(() => {
-            window.location.replace('/login');
-          }, 800);
+          // Clear everything even on error
+          performStrictLocalLogout();
         }
       }
+    }
+
+    // ===== SESSION INVALIDATION HANDLER (Account logged in elsewhere) =====
+    function handleSessionInvalidation(message = null) {
+      const defaultMessage = message || "Your account has been logged in on another device. You have been logged out.";
+      
+      // Audio cleanup
+      if (window.sharedAudioPlayer && window.sharedAudioPlayer.audio) {
+        window.sharedAudioPlayer.audio.pause();
+        window.sharedAudioPlayer.audio.src = '';
+      }
+      
+      // Complete data wipe
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Cookie clearing
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      // Global variables
+      window.currentUser = null;
+      window.isLoggedIn = false;
+      window.songs = [];
+      window.userId = null;
+      window.userEmail = null;
+      
+      // Show alert message
+      alert("🔐 " + defaultMessage);
+      
+      // Redirect to login
+      window.location.replace('/login');
+    }
+
+    // Strict local logout function (called on error or API failure)
+    function performStrictLocalLogout() {
+      // Audio player cleanup
+      if (window.sharedAudioPlayer && window.sharedAudioPlayer.audio) {
+        window.sharedAudioPlayer.audio.pause();
+        window.sharedAudioPlayer.audio.src = '';
+      }
+      
+      // Complete data wipe
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Cookie clearing
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      // Global variables
+      window.currentUser = null;
+      window.isLoggedIn = false;
+      window.songs = [];
+      
+      // History clearing
+      window.history.replaceState(null, null, '/login');
+      
+      showNotification('🔒 Session forcibly closed');
+      
+      // Force redirect
+      setTimeout(() => {
+        window.location.replace('/login');
+      }, 500);
     }
 
     // Check authentication on page load and prevent back navigation after logout
@@ -3242,8 +3404,8 @@ function openQueue() {
       try {
         const response = await fetch('/api/auth/me');
         if (!response.ok) {
-          // Not authenticated, redirect to login
-          window.location.replace('/login');
+          // Not authenticated, immediately redirect to login
+          performStrictLocalLogout();
           return;
         }
       } catch (error) {
@@ -3255,16 +3417,32 @@ function openQueue() {
     // Prevent back button navigation to protected pages after logout
     window.addEventListener('popstate', function(event) {
       // Check if user is still authenticated
-      fetch('/api/auth/me')
+      fetch('/api/auth/me', { credentials: 'same-origin' })
         .then(response => {
           if (!response.ok) {
-            // Not authenticated, redirect to login
-            window.location.replace('/login');
+            // Not authenticated, perform strict logout
+            performStrictLocalLogout();
+            event.preventDefault();
           }
         })
         .catch(() => {
-          window.location.replace('/login');
+          // Error checking auth, assume not logged in
+          performStrictLocalLogout();
+          event.preventDefault();
         });
+    });
+
+    // Additional security: Prevent access via history if session is invalid
+    window.addEventListener('beforeunload', function() {
+      // Validate session is still active
+      fetch('/api/auth/me', { 
+        method: 'GET',
+        credentials: 'same-origin' 
+      }).catch(() => {
+        // If auth fails, clear everything
+        localStorage.clear();
+        sessionStorage.clear();
+      });
     });
 
     function updateAdminVisibility() {

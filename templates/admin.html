@@ -848,20 +848,24 @@
 
             <div class="grid-2">
               <div class="form-group">
-                <label>Cover Image URL</label>
-                <input type="url" id="editSongCoverUrl" placeholder="https://..." />
+                <label>Cover Image (Upload or URL)</label>
+                <input type="file" id="editCoverImageFile" accept="image/*" style="margin-bottom: 8px;" />
+                <input type="url" id="editSongCoverUrl" placeholder="Or paste image URL: https://..." />
                 <div id="editCoverPreview" style="margin-top: 8px;"></div>
               </div>
               <div class="form-group">
-                <label>Artist Photo URL</label>
-                <input type="url" id="editArtistPhotoUrl" placeholder="https://..." />
+                <label>Artist Photo (Upload or URL)</label>
+                <input type="file" id="editArtistPhotoFile" accept="image/*" style="margin-bottom: 8px;" />
+                <input type="url" id="editArtistPhotoUrl" placeholder="Or paste image URL: https://..." />
                 <div id="editArtistPreview" style="margin-top: 8px;"></div>
               </div>
             </div>
 
             <div class="form-group">
-              <label>Audio URL</label>
-              <input type="url" id="editSongAudioUrl" placeholder="https://...mp3" />
+              <label>Audio File (Upload or URL)</label>
+              <input type="file" id="editAudioFile" accept="audio/*" style="margin-bottom: 8px;" />
+              <input type="url" id="editSongAudioUrl" placeholder="Or paste audio URL: https://...mp3" />
+              <div id="editAudioFileInfo" style="margin-top: 8px; color: #a2a9b8; font-size: 0.875rem;"></div>
             </div>
 
             <div class="form-group">
@@ -1011,22 +1015,29 @@
       if (!confirm(`Are you sure you want to ${action} this user?`)) return;
 
       try {
+        showNotification('⏳ Updating user status...');
+        
         const response = await fetch(`/api/admin/users/${userId}/toggle-status`, {
-          method: 'POST'
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
 
         const data = await response.json();
+        
+        console.log('Toggle status response:', data, 'Status code:', response.status);
 
-        if (data.success) {
+        if (response.ok && data.success) {
           showNotification(`✅ User ${action}d successfully`);
           await loadUsers();
           await loadStats();
         } else {
-          showNotification('❌ Failed to update user status');
+          showNotification(`❌ ${data.error || 'Failed to update user status'}`);
         }
       } catch (error) {
         console.error('Error toggling user status:', error);
-        showNotification('❌ Error updating user');
+        showNotification('❌ Error updating user: ' + error.message);
       }
     }
 
@@ -1243,7 +1254,14 @@
       document.getElementById('editSongCoverUrl').value = song.coverUrl || '';
       document.getElementById('editArtistPhotoUrl').value = song.artistPhotoUrl || '';
       document.getElementById('editSongAudioUrl').value = song.audioUrl || '';
-      document.getElementById('editSongLanguage').value = song.language || 'English';  // NEW LINE
+      document.getElementById('editSongLanguage').value = song.language || 'English';
+      
+      // Reset file inputs
+      document.getElementById('editCoverImageFile').value = '';
+      document.getElementById('editArtistPhotoFile').value = '';
+      document.getElementById('editAudioFile').value = '';
+      document.getElementById('editAudioFileInfo').textContent = '';
+      
       // Check emotions
       document.querySelectorAll('#editEmotionCheckboxes input[type="checkbox"]').forEach(cb => {
         cb.checked = song.emotions.includes(cb.value);
@@ -1253,10 +1271,15 @@
       if (song.coverUrl) {
         document.getElementById('editCoverPreview').innerHTML = 
           `<img src="${song.coverUrl}" class="image-preview" alt="Cover" onerror="this.style.display='none'" />`;
+      } else {
+        document.getElementById('editCoverPreview').innerHTML = '';
       }
+      
       if (song.artistPhotoUrl) {
         document.getElementById('editArtistPreview').innerHTML = 
           `<img src="${song.artistPhotoUrl}" class="image-preview" alt="Artist" onerror="this.style.display='none'" />`;
+      } else {
+        document.getElementById('editArtistPreview').innerHTML = '';
       }
 
       // Show modal
@@ -1269,6 +1292,7 @@
       document.getElementById('editSongForm').reset();
       document.getElementById('editCoverPreview').innerHTML = '';
       document.getElementById('editArtistPreview').innerHTML = '';
+      document.getElementById('editAudioFileInfo').textContent = '';
     }
 
     // Update song
@@ -1278,11 +1302,7 @@
       const songId = document.getElementById('editSongId').value;
       const title = document.getElementById('editSongTitle').value.trim();
       const artist = document.getElementById('editSongArtist').value.trim();
-      const coverUrl = document.getElementById('editSongCoverUrl').value.trim();
-      const artistPhotoUrl = document.getElementById('editArtistPhotoUrl').value.trim();
-      const language = document.getElementById('editSongLanguage').value;  // NEW LINE
-      const audioUrl = document.getElementById('editSongAudioUrl').value.trim();
-
+      const language = document.getElementById('editSongLanguage').value;
       const emotions = Array.from(document.querySelectorAll('#editEmotionCheckboxes input:checked'))
         .map(cb => cb.value);
 
@@ -1294,21 +1314,64 @@
       try {
         showNotification('⏳ Updating song...');
 
-        const response = await fetch(`/api/songs/${songId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            title,
-            artist,
-            language,
-            coverUrl: coverUrl || undefined,
-            artistPhotoUrl: artistPhotoUrl || undefined,
-            audioUrl: audioUrl || undefined,
-            emotions
-          })
-        });
+        // Check if we have file uploads
+        const audioFile = document.getElementById('editAudioFile').files[0];
+        const coverFile = document.getElementById('editCoverImageFile').files[0];
+        const artistPhotoFile = document.getElementById('editArtistPhotoFile').files[0];
+        const audioUrl = document.getElementById('editSongAudioUrl').value.trim();
+        const coverUrl = document.getElementById('editSongCoverUrl').value.trim();
+        const artistPhotoUrl = document.getElementById('editArtistPhotoUrl').value.trim();
+
+        let response;
+
+        // If we have file uploads, use FormData
+        if (audioFile || coverFile || artistPhotoFile) {
+          const formData = new FormData();
+          formData.append('title', title);
+          formData.append('artist', artist);
+          formData.append('language', language);
+          formData.append('emotions', JSON.stringify(emotions));
+          
+          if (audioFile) {
+            formData.append('audioFile', audioFile);
+          } else if (audioUrl) {
+            formData.append('audioUrl', audioUrl);
+          }
+          
+          if (coverFile) {
+            formData.append('coverFile', coverFile);
+          } else if (coverUrl) {
+            formData.append('coverUrl', coverUrl);
+          }
+          
+          if (artistPhotoFile) {
+            formData.append('artistPhotoFile', artistPhotoFile);
+          } else if (artistPhotoUrl) {
+            formData.append('artistPhotoUrl', artistPhotoUrl);
+          }
+
+          response = await fetch(`/api/songs/${songId}`, {
+            method: 'PUT',
+            body: formData
+          });
+        } else {
+          // Use JSON for URL-only updates
+          response = await fetch(`/api/songs/${songId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              title,
+              artist,
+              language,
+              coverUrl: coverUrl || undefined,
+              artistPhotoUrl: artistPhotoUrl || undefined,
+              audioUrl: audioUrl || undefined,
+              emotions
+            })
+          });
+        }
 
         const data = await response.json();
 
@@ -1340,6 +1403,40 @@
       if (url) {
         document.getElementById('editArtistPreview').innerHTML = 
           `<img src="${url}" class="image-preview" alt="Artist preview" onerror="this.style.display='none'" />`;
+      }
+    });
+
+    // File preview handlers for edit modal
+    document.getElementById('editCoverImageFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('editCoverPreview').innerHTML = 
+            `<img src="${event.target.result}" class="image-preview" alt="Cover preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    document.getElementById('editArtistPhotoFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('editArtistPreview').innerHTML = 
+            `<img src="${event.target.result}" class="image-preview" alt="Artist preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    document.getElementById('editAudioFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        document.getElementById('editAudioFileInfo').textContent = 
+          `📁 ${file.name} (${sizeMB} MB)`;
       }
     });
 
