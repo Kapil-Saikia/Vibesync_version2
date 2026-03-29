@@ -2170,6 +2170,7 @@
   </div>
     <a href="#" onclick="showSection('profile')">👤 Profile</a>
     
+    <a href="#" id="installAppBtn" style="display: none;" onclick="installPWA()">📲 Install App</a>
     <a href="#" id="adminBtn" style="display: none;" onclick="showSection('admin')">⚙️ Admin Panel</a>
     <button onclick="handleLogout()">🚪 Logout</button>
     <div class="theme-toggle">
@@ -7143,6 +7144,50 @@ if (document.readyState === 'loading') {
   runAuthenticationCheck();
 }
 
-  </script>
+// === PWA INSTALLATION LOGIC ===
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent Chrome 67 and earlier from automatically showing the prompt
+  e.preventDefault();
+  // Stash the event so it can be triggered later.
+  deferredPrompt = e;
+  // Update UI to notify the user they can add to home screen
+  const installBtn = document.getElementById('installAppBtn');
+  if (installBtn) {
+    installBtn.style.display = 'flex';
+  }
+});
+
+async function installPWA() {
+  if (!deferredPrompt) {
+    showNotification('App is already installed or not supported in this browser.');
+    return;
+  }
+  // Show the install prompt
+  deferredPrompt.prompt();
+  // Wait for the user to respond to the prompt
+  const { outcome } = await deferredPrompt.userChoice;
+  console.log(`User response to the install prompt: ${outcome}`);
+  // We've used the prompt, and can't use it again, throw it away
+  deferredPrompt = null;
+  // Hide the button
+  const installBtn = document.getElementById('installAppBtn');
+  if (installBtn) {
+    installBtn.style.display = 'none';
+  }
+}
+
+window.addEventListener('appinstalled', () => {
+  // Hide the app-provided install promotion
+  const installBtn = document.getElementById('installAppBtn');
+  if (installBtn) {
+    installBtn.style.display = 'none';
+  }
+  showNotification('VibeSync is now installed!');
+  // Clear the deferredPrompt so it can be garbage collected
+  deferredPrompt = null;
+  console.log('PWA was installed');
+});
+</script>
 </body>
 </html>
