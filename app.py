@@ -40,6 +40,10 @@ cloudinary.config(
     secure=True
 )
 
+# Load Haar Cascade once globally
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'flac'}
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -67,6 +71,7 @@ except Exception as e:
 # ============================================================
 # PostgreSQL Configuration (REPLACES SQLite)
 # ============================================================
+from psycopg2 import pool
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 if not DATABASE_URL:
@@ -85,9 +90,53 @@ POSTGRES_CONFIG = {
     'sslmode': 'require'
 }
 
+# Create a connection pool
+try:
+    pg_pool = pool.SimpleConnectionPool(
+        1, 10,  # min and max connections
+        host=POSTGRES_CONFIG['host'],
+        port=POSTGRES_CONFIG['port'],
+        user=POSTGRES_CONFIG['user'],
+        password=POSTGRES_CONFIG['password'],
+        database=POSTGRES_CONFIG['database'],
+        sslmode=POSTGRES_CONFIG['sslmode'],
+        cursor_factory=RealDictCursor
+    )
+    if pg_pool:
+        print("✓ Connected to PostgreSQL pool")
+except Exception as e:
+    print(f"❌ PostgreSQL pool creation error: {e}")
+    pg_pool = None
+
 def get_db_connection():
-    """Get PostgreSQL connection"""
+    """Get PostgreSQL connection from pool"""
     try:
+        if pg_pool:
+            # Get an active connection, with retry logic in case of dead/closed connection
+            for _ in range(3):
+                try:
+                    conn = pg_pool.getconn()
+                    # Test if the connection is still alive using a lightweight ping
+                    if hasattr(conn, 'closed') and conn.closed != 0:
+                        # The connection is closed, remove it from the pool permanently
+                        pg_pool.putconn(conn, close=True)
+                        continue
+                        
+                    # Ping the server
+                    cur = conn.cursor()
+                    cur.execute("SELECT 1")
+                    cur.close()
+                    return conn
+                except (Exception, psycopg2.OperationalError) as e:
+                    # If the connection was returned dead by PostgreSQL
+                    try:
+                        pg_pool.putconn(conn, close=True)
+                    except:
+                        pass
+            
+            # If all 3 retries from the pool fail, fallback to a single connection mechanism
+            
+        # Fallback to single connection if pool fails or is unavailable
         conn = psycopg2.connect(
             host=POSTGRES_CONFIG['host'],
             port=POSTGRES_CONFIG['port'],
@@ -95,12 +144,22 @@ def get_db_connection():
             password=POSTGRES_CONFIG['password'],
             database=POSTGRES_CONFIG['database'],
             sslmode=POSTGRES_CONFIG['sslmode'],
-            cursor_factory=RealDictCursor  # Returns dict-like rows
+            cursor_factory=RealDictCursor
         )
         return conn
     except Exception as e:
         print(f"❌ PostgreSQL connection error: {e}")
         raise
+
+def release_db_connection(conn):
+    """Release PostgreSQL connection back to pool"""
+    try:
+        if pg_pool and conn:
+            pg_pool.putconn(conn)
+        elif conn:
+            release_db_connection(conn)
+    except Exception as e:
+        print(f"❌ Error releasing connection: {e}")
 
 # ============================================================
 # SECURITY MIDDLEWARE
@@ -222,6 +281,8 @@ def init_postgres():
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_fav_user_id ON favorites(user_id)')
         
+      
+        
         # Playlists table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS playlists (
@@ -280,7 +341,7 @@ def init_postgres():
         raise
     finally:
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
 # ============================================================
 # HELPER FUNCTIONS (Keep these as is)
@@ -308,7 +369,7 @@ def invalidate_user_sessions(user_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         print(f"✓ Invalidated all existing sessions for user_id: {user_id}")
     except Exception as e:
         print(f"❌ Error invalidating user sessions: {e}")
@@ -326,7 +387,7 @@ def create_active_session(user_id, session_id, device_info=None):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         print(f"✓ Created active session for user_id: {user_id}")
     except Exception as e:
         print(f"❌ Error creating active session: {e}")
@@ -344,7 +405,7 @@ def is_session_valid(user_id, session_id):
         
         result = cursor.fetchone()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         return result is not None
     except Exception as e:
@@ -365,7 +426,7 @@ def update_session_activity(user_id, session_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
     except Exception as e:
         print(f"❌ Error updating session activity: {e}")
 
@@ -514,7 +575,7 @@ def signup():
         cursor.execute('SELECT id FROM users WHERE email = %s', (email,))
         if cursor.fetchone():
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Email already registered'}), 400
         
         password_hash = hash_password(password)
@@ -527,7 +588,7 @@ def signup():
         user_id = cursor.fetchone()['id']
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         # ===== NEW SINGLE SESSION LOGIC FOR SIGNUP =====
         # Generate session ID and create active session
@@ -585,18 +646,18 @@ def login():
         
         if not user:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Invalid email or password'}), 401
         
         password_hash = hash_password(password)
         if user['password_hash'] != password_hash:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Invalid email or password'}), 401
         
         if not user['is_active']:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Account is deactivated'}), 403
         
         cursor.execute('''
@@ -604,7 +665,7 @@ def login():
         ''', (user['id'],))
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         # ===== NEW SINGLE SESSION LOGIC =====
         # 1. Invalidate all existing sessions for this user
@@ -666,7 +727,7 @@ def logout():
             
             conn.commit()
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             print(f"✓ Session invalidated for user_id: {user_id}")
         except Exception as e:
             print(f"❌ Error invalidating session: {e}")
@@ -701,7 +762,7 @@ def get_current_user():
     
     user = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_db_connection(conn)
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -789,12 +850,7 @@ def detect_emotion():
             else:
                 image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
         
-        # Save temp image
-        temp_path = 'temp_frame.jpg'
-        cv2.imwrite(temp_path, image_np)
-        
         # Detect face first with OpenCV for landmarks
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.3, 5)
         
@@ -878,7 +934,7 @@ def detect_emotion():
         
         # Now analyze emotion with DeepFace
         result = DeepFace.analyze(
-            img_path=temp_path,
+            img_path=image_np,
             actions=['emotion'],
             enforce_detection=False,
             detector_backend='opencv'
@@ -902,13 +958,92 @@ def detect_emotion():
         ''', (session['user_id'], session['email'], dominant_emotion, confidence))
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
 
-        # Get songs from MongoDB
-        songs = list(songs_collection.find({
-            'emotions': {'$in': [dominant_emotion.lower()]}
-        }).limit(10))
-        songs = [serialize_song(song) for song in songs]
+        # --- HYBRID RECOMMENDATION ENGINE ---
+        import random
+        user_id = session.get('user_id')
+        
+        # 1. Fetch user interactions from PostgreSQL
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get Favorites (Likes)
+        cursor.execute("SELECT song_id FROM favorites WHERE user_id = %s", (user_id,))
+        favorites = {row['song_id'] for row in cursor.fetchall()}
+        
+        # Get Dislikes
+        cursor.execute("SELECT song_id FROM dislikes WHERE user_id = %s", (user_id,))
+        dislikes = {row['song_id'] for row in cursor.fetchall()}
+        
+        # Get Play History (Recent & Frequency)
+        cursor.execute("SELECT song_id, played_at FROM recently_played WHERE user_id = %s ORDER BY played_at DESC", (user_id,))
+        play_history = cursor.fetchall()
+        
+        cursor.close()
+        release_db_connection(conn)
+
+        # Calculate play frequencies and recency
+        play_counts = {}
+        recent_plays = set()
+        for idx, row in enumerate(play_history):
+            s_id = row['song_id']
+            play_counts[s_id] = play_counts.get(s_id, 0) + 1
+            if idx < 15:  # Top 15 most recent plays
+                recent_plays.add(s_id)
+
+        # 2. Fetch Candidate Songs from MongoDB
+        # Get emotion-matching songs
+        matching_songs = list(songs_collection.find({'emotions': {'$in': [dominant_emotion.lower()]}}))
+        
+        # Get random sample to ensure discovery/breaking bubbles
+        other_songs = list(songs_collection.aggregate([
+            {'$match': {'emotions': {'$nin': [dominant_emotion.lower()]}}},
+            {'$sample': {'size': 15}}
+        ]))
+        
+        candidate_songs = matching_songs + other_songs
+        # Deduplicate candidates using string ID
+        unique_candidate_songs = {str(song['_id']): song for song in candidate_songs}.values()
+
+        # 3. Dynamic Scoring 
+        scored_songs = []
+        for song in unique_candidate_songs:
+            song_id = str(song['_id'])
+            score = 0.0
+            
+            # Content-Based: Emotion Match (+15 points)
+            emotion_list = [e.lower() for e in song.get('emotions', [])]
+            if dominant_emotion.lower() in emotion_list:
+                score += 15.0
+                
+            # Behavioral: Likes/Favorites (+10 points)
+            if song_id in favorites:
+                score += 10.0
+                
+            # Behavioral: Dislikes (Filter out or heavily penalize)
+            if song_id in dislikes:
+                score -= 100.0  # Basically removes it from valid recommendations
+                
+            # Behavioral: Frequently Listened (up to +10 points)
+            freq = play_counts.get(song_id, 0)
+            score += min(freq * 1.5, 10.0)
+            
+            # Behavioral: Recent History (+4 points)
+            if song_id in recent_plays:
+                score += 4.0
+                
+            # Anti-Monotony Factor:
+            # Adds random noise (0 to 3 points) so we don't return the exact same order for everyone
+            score += random.uniform(0.0, 3.0)
+            
+            scored_songs.append((score, song))
+            
+        # 4. Sort and return Top 10
+        scored_songs.sort(key=lambda x: x[0], reverse=True)
+        top_songs = [s[1] for s in scored_songs[:10]]
+        
+        songs = [serialize_song(song) for song in top_songs]
         
         emotion_mapping = {
             'angry': 'Angry', 'disgust': 'Disgust', 'fear': 'Fear',
@@ -968,7 +1103,7 @@ def add_recently_played():
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         return jsonify({'success': True}), 201
         
@@ -993,7 +1128,7 @@ def get_recently_played():
         
         rows = cursor.fetchall()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         history = []
         for row in rows:
@@ -1054,7 +1189,7 @@ def get_emotion_history():
         
         rows = cursor.fetchall()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         history = [{
             'emotion': row['emotion'],
@@ -1442,7 +1577,7 @@ def get_all_users():
         ''')
         
         rows = cursor.fetchall()
-        conn.close()
+        release_db_connection(conn)
         
         users = [{
             'id': row['id'],
@@ -1473,7 +1608,7 @@ def toggle_user_status(user_id):
         user = cursor.fetchone()
         
         if not user:
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
         # Toggle the status (flip boolean)
@@ -1487,7 +1622,7 @@ def toggle_user_status(user_id):
         # Verify the update
         cursor.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
         updated_user = cursor.fetchone()
-        conn.close()
+        release_db_connection(conn)
         
         if updated_user and updated_user['is_active'] == new_status:
             admin_email = session.get('email', 'Unknown')
@@ -1531,7 +1666,7 @@ def get_admin_stats():
         total_emotions = cursor.fetchone()['count']
         
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         # Total songs from MongoDB
         total_songs = songs_collection.count_documents({})
@@ -1566,7 +1701,7 @@ def get_user_emotion_history(user_id):
         ''', (user_id, limit))
         
         rows = cursor.fetchall()
-        conn.close()
+        release_db_connection(conn)
         
         history = [{
             'emotion': row['emotion'].capitalize(),
@@ -1598,7 +1733,7 @@ def get_user_recently_played(user_id):
         ''', (user_id, limit))
         
         rows = cursor.fetchall()
-        conn.close()
+        release_db_connection(conn)
         
         history = [{
             'songId': row['song_id'],
@@ -1691,7 +1826,7 @@ def get_user_activity_charts(user_id):
             emotion_labels.append(display_name)
             emotion_data.append(row['count'])
         
-        conn.close()
+        release_db_connection(conn)
         
         return jsonify({
             'listeningActivity': {
@@ -1728,7 +1863,7 @@ def change_user_password(user_id):
         user = cursor.fetchone()
         
         if not user:
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'User not found'}), 404
         
         # Update password
@@ -1738,7 +1873,7 @@ def change_user_password(user_id):
         ''', (password_hash, user_id))
         
         conn.commit()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Password changed by admin {session['email']} for user: {user['email']}")
         
@@ -1772,7 +1907,7 @@ def delete_recently_played():
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ History item deleted by {session['email']}")
         
@@ -1799,7 +1934,7 @@ def clear_recently_played():
         deleted_count = cursor.rowcount
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ All history cleared by {session['email']} ({deleted_count} items)")
         
@@ -1836,7 +1971,7 @@ def get_favorites():
         ''', (session['user_id'],))
         
         rows = cursor.fetchall()
-        conn.close()
+        release_db_connection(conn)
         
         favorites = [{
             'id': row['song_id'],
@@ -1879,7 +2014,7 @@ def add_favorite():
         cursor.execute('SELECT id FROM favorites WHERE user_id = %s AND song_id = %s', 
                       (session['user_id'], song_id))
         if cursor.fetchone():
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'success': True, 'message': 'Already in favorites'}), 200
         
         # Add to favorites
@@ -1889,7 +2024,7 @@ def add_favorite():
         ''', (session['user_id'], song_id, song_title, artist, cover_url, audio_url, artist_photo_url))
         
         conn.commit()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Favorite added by {session['email']}: {song_title}")
         return jsonify({'success': True, 'message': 'Added to favorites'}), 201
@@ -1912,11 +2047,11 @@ def remove_favorite(song_id):
         ''', (session['user_id'], song_id))
         
         if cursor.rowcount == 0:
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Favorite not found'}), 404
         
         conn.commit()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Favorite removed by {session['email']}: {song_id}")
         return jsonify({'success': True, 'message': 'Removed from favorites'}), 200
@@ -1937,11 +2072,13 @@ def check_favorite(song_id):
                       (session['user_id'], song_id))
         is_favorited = cursor.fetchone() is not None
         
-        conn.close()
+        release_db_connection(conn)
         return jsonify({'isFavorited': is_favorited}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
 
 # ============================================================
 # PROFILE MANAGEMENT
@@ -1970,7 +2107,7 @@ def update_profile():
         ''', (first_name, last_name, session['user_id']))
         
         conn.commit()
-        conn.close()
+        release_db_connection(conn)
         
         # Update session
         session['first_name'] = first_name
@@ -2016,12 +2153,12 @@ def change_password():
         
         user = cursor.fetchone()
         if not user:
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'User not found'}), 404
         
         current_hash = hash_password(current_password)
         if user['password_hash'] != current_hash:
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Current password is incorrect'}), 401
         
         # Update password
@@ -2031,7 +2168,7 @@ def change_password():
         ''', (new_hash, session['user_id']))
         
         conn.commit()
-        conn.close()
+        release_db_connection(conn)
         
         return jsonify({'success': True, 'message': 'Password changed successfully'}), 200
         
@@ -2098,7 +2235,7 @@ def get_playlists():
             })
         
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         return jsonify(playlists), 200
         
     except Exception as e:
@@ -2135,7 +2272,7 @@ def create_playlist():
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Playlist created by {session['email']}: {name} (ID: {playlist_id})")
         
@@ -2179,12 +2316,12 @@ def update_playlist(playlist_id):
         
         if not playlist:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Update playlist
@@ -2196,7 +2333,7 @@ def update_playlist(playlist_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Playlist updated by {session['email']}: {name}")
         return jsonify({'success': True, 'message': 'Playlist updated'}), 200
@@ -2219,12 +2356,12 @@ def delete_playlist(playlist_id):
         
         if not playlist:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Delete playlist (cascade will delete songs)
@@ -2232,7 +2369,7 @@ def delete_playlist(playlist_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Playlist deleted by {session['email']}: {playlist['name']}")
         return jsonify({'success': True, 'message': 'Playlist deleted'}), 200
@@ -2267,12 +2404,12 @@ def add_song_to_playlist(playlist_id):
         
         if not playlist:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Check if song already in playlist
@@ -2280,7 +2417,7 @@ def add_song_to_playlist(playlist_id):
                       (playlist_id, song_id))
         if cursor.fetchone():
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'success': True, 'message': 'Song already in playlist'}), 200
         
         # Add song to playlist
@@ -2296,7 +2433,7 @@ def add_song_to_playlist(playlist_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Song added to playlist by {session['email']}: {song_title}")
         return jsonify({'success': True, 'message': 'Song added to playlist'}), 201
@@ -2319,12 +2456,12 @@ def remove_song_from_playlist(playlist_id, song_id):
         
         if not playlist:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Playlist not found'}), 404
         
         if playlist['user_id'] != session['user_id']:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Unauthorized'}), 403
         
         # Remove song - FIXED: Use %s for both parameters
@@ -2335,7 +2472,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         
         if cursor.rowcount == 0:
             cursor.close()
-            conn.close()
+            release_db_connection(conn)
             return jsonify({'error': 'Song not found in playlist'}), 404
         
         # Update playlist updated_at
@@ -2345,7 +2482,7 @@ def remove_song_from_playlist(playlist_id, song_id):
         
         conn.commit()
         cursor.close()
-        conn.close()
+        release_db_connection(conn)
         
         print(f"✓ Song removed from playlist by {session['email']}")
         return jsonify({'success': True, 'message': 'Song removed from playlist'}), 200
