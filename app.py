@@ -820,6 +820,7 @@ def profile_page():
 @login_required
 def playlist_page():
     return render_template('playlist.html')
+    return render_template('playlist.html')
 
 # ============================================================
 # RECENTLY PLAYED (SQLite)
@@ -1206,6 +1207,30 @@ def get_emotion_history():
 # ADMIN ROUTES - SONG MANAGEMENT (MongoDB)
 # ============================================================
 
+@app.route('/api/artists', methods=['GET'])
+@login_required # or @admin_required if available
+def get_all_artists():
+    """Get all unique artists and their photos"""
+    try:
+        pipeline = [
+            {'$match': {'artist': {'$ne': None, '$ne': ''}}},
+            {'$group': {
+                '_id': '$artist',
+                'photoUrl': {'$first': '$artistPhotoUrl'}
+            }},
+            {'$project': {
+                '_id': 0,
+                'name': '$_id',
+                'photoUrl': 1
+            }},
+            {'$sort': {'name': 1}}
+        ]
+        artists = list(songs_collection.aggregate(pipeline))
+        return jsonify({'artists': artists})
+    except Exception as e:
+        print(f"Error fetching artists: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/songs', methods=['GET'])
 @login_required
@@ -1263,6 +1288,7 @@ def upload_song():
         artist = request.form.get('artist', '').strip()
         emotions_json = request.form.get('emotions', '[]')
         language = request.form.get('language', 'English').strip()
+        genre = request.form.get('genre', 'pop').strip()
 
         if not title or not artist:
             return jsonify({'error': 'Title and artist required'}), 400
@@ -1317,6 +1343,7 @@ def upload_song():
             'artistPhotoUrl': artist_photo_url,
             'emotions': [e.lower() for e in emotions],
             'language': language,
+            'genre': request.form.get('genre', 'pop').strip(),
             'createdAt': datetime.utcnow(),
             'updatedAt': datetime.utcnow(),
             'uploadedBy': session['email']
@@ -1354,6 +1381,7 @@ def add_song():
             'artistPhotoUrl': data.get('artistPhotoUrl', ''),
             'emotions': [e.lower() for e in data['emotions']],
             'language': data.get('language', 'English'),
+            'genre': data.get('genre', 'pop'),
             'createdAt': datetime.utcnow(),
             'updatedAt': datetime.utcnow(),
             'uploadedBy': session['email']
@@ -1411,6 +1439,48 @@ def get_available_languages():
 
 
 
+# Add these routes after the /api/songs/languages endpoint
+
+@app.route('/api/songs/genres', methods=['GET'])
+@login_required
+def get_available_genres():
+    """Get list of all available genres"""
+    try:
+        # Get distinct genres from MongoDB
+        genres = songs_collection.distinct('genre')
+        
+        # Filter out None/empty and sort
+        genres = [genre for genre in genres if genre]
+        genres.sort()
+        
+        return jsonify(genres), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/songs/by-genre', methods=['GET'])
+@login_required
+def get_songs_by_genre():
+    """Get songs by genre"""
+    try:
+        genre = request.args.get('genre', '').strip()
+        
+        if not genre:
+            return jsonify({'error': 'Genre parameter required'}), 400
+        
+        # Get songs from MongoDB that match the genre
+        songs = list(songs_collection.find({
+            'genre': genre
+        }).sort('createdAt', -1))
+        
+        songs = [serialize_song(song) for song in songs]
+        
+        return jsonify(songs), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 
 
@@ -1440,6 +1510,7 @@ def update_song(song_id):
             title = data.get('title')
             artist = data.get('artist')
             language = data.get('language', 'English')
+            genre = data.get('genre', 'pop')
             emotions = data.get('emotions', [])
             audio_file = None
             cover_file = None
@@ -1449,6 +1520,7 @@ def update_song(song_id):
             title = request.form.get('title')
             artist = request.form.get('artist')
             language = request.form.get('language', 'English')
+            genre = request.form.get('genre', 'pop')
             emotions = request.form.get('emotions')
             if emotions:
                 emotions = [e.strip() for e in emotions.strip('[]').split(',')]
@@ -1471,6 +1543,7 @@ def update_song(song_id):
             'title': title,
             'artist': artist,
             'language': language,
+            'genre': genre,
             'emotions': [e.lower() for e in emotions],
             'updatedAt': datetime.utcnow()
         }
@@ -1639,6 +1712,47 @@ def toggle_user_status(user_id):
         
     except Exception as e:
         print(f"Error toggling user status: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
+@admin_required
+def toggle_admin_status(user_id):
+    """Promote/Demote a user (main admin only)"""
+    # Only allow the main admin (e.g. admin@music.com) or those strictly authorized
+    if session.get('email') != 'admin@music.com':
+        return jsonify({'success': False, 'error': 'Only main admin can promote or demote users'}), 403
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get current status
+        cursor.execute('SELECT is_admin, email FROM users WHERE id = %s', (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            release_db_connection(conn)
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+            
+        if user['email'] == 'admin@music.com':
+            release_db_connection(conn)
+            return jsonify({'success': False, 'error': 'Cannot demote the main admin'}), 400
+            
+        current_status = user['is_admin']
+        new_status = not current_status
+        
+        # Update the status
+        cursor.execute('UPDATE users SET is_admin = %s WHERE id = %s', (new_status, user_id))
+        conn.commit()
+        release_db_connection(conn)
+        
+        return jsonify({
+            'success': True,
+            'message': f"User {'promoted to' if new_status else 'demoted from'} admin successfully",
+            'isAdmin': new_status
+        }), 200
+    except Exception as e:
+        print(f"Error toggling admin status: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/admin/stats', methods=['GET'])
