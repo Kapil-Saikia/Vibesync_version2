@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -2166,12 +2166,13 @@
     <a href="#" onclick="showSection('playlist')">📋 Playlists</a>
     <button onclick="openCreatePlaylistModal()" style="background: transparent; border: none; color: var(--text-primary); font-size: 16px; font-weight: 600; text-align: left; padding: 14px 18px; cursor: pointer; transition: var(--transition); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px; width: 100%; font-family: inherit;">➕ Create Playlist</button>
     <a href="#" onclick="showSection('languages')">🌍 Languages</a> <!-- NEW -->
+    <a href="#" onclick="showSection('genres')">🎵 Genres</a>
     </button>
   </div>
     <a href="#" onclick="showSection('profile')">👤 Profile</a>
     
     <a href="#" id="installAppBtn" style="display: none;" onclick="installPWA()">📲 Install App</a>
-    <a href="#" id="adminBtn" style="display: none;" onclick="showSection('admin')">⚙️ Admin Panel</a>
+    <a href="/admin" id="adminBtn" style="display: none;">⚙️ Admin Panel</a>
     <button onclick="handleLogout()">🚪 Logout</button>
     <div class="theme-toggle">
       <span style="font-weight: 600;">Theme</span>
@@ -2699,6 +2700,40 @@
     </div>
   </div>
 
+  <!-- GENRES SECTION -->
+<div id="genresSection" class="page-section">
+  <div id="genresContent" style="min-height: 100vh;">
+    <div id="genresSkeleton" style="padding: 60px 20px; display: none;">
+      <div class="section">
+        <div class="skeleton" style="width: 220px; height: 32px; margin-bottom: 32px;"></div>
+        <!-- Genre Category Cards with Flag Space -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px;">
+          <div style="background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%); border-radius: 16px; padding: 20px; border: 1px solid rgba(102,126,234,0.2); text-align: center;">
+            <div class="skeleton" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="width: 70%; height: 12px; margin: 0 auto;"></div>
+          </div>
+          <div style="background: linear-gradient(135deg, rgba(240,93,251,0.1) 0%, rgba(245,87,108,0.1) 100%); border-radius: 16px; padding: 20px; border: 1px solid rgba(245,87,108,0.2); text-align: center;">
+            <div class="skeleton" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="width: 65%; height: 12px; margin: 0 auto;"></div>
+          </div>
+          <div style="background: linear-gradient(135deg, rgba(79,172,254,0.1) 0%, rgba(0,242,254,0.1) 100%); border-radius: 16px; padding: 20px; border: 1px solid rgba(79,172,254,0.2); text-align: center;">
+            <div class="skeleton" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="width: 72%; height: 12px; margin: 0 auto;"></div>
+          </div>
+          <div style="background: linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.1) 100%); border-radius: 16px; padding: 20px; border: 1px solid rgba(67,233,123,0.2); text-align: center;">
+            <div class="skeleton" style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 16px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="width: 68%; height: 12px; margin: 0 auto;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="genresGrid"></div>
+  </div>
+</div>
 
   <!-- ADMIN SECTION -->
   <div id="adminSection" class="page-section">
@@ -3808,6 +3843,7 @@ function openQueue() {
     'favorites': '❤️ Favorites',
     'playlist': '📋 Playlists',
     'languages': '🌍 Languages',
+    'genres': '🎵 Genres',
     'profile': '👤 Profile',
     'admin': '⚙️ Admin Panel'
   };
@@ -3833,6 +3869,9 @@ function openQueue() {
         loadPlaylistSection();
       } else if (section === 'languages') {
         loadLanguagesSection();
+      } else if (section === 'genres') {
+        loadGenresSection();
+
       } else if (section === 'profile') {
         // container.dataset.loaded = 'false'; // Removed to allow caching
         loadProfileSection();
@@ -7201,6 +7240,527 @@ window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
   console.log('PWA was installed');
 });
+
+
+
+
+
+
+
+
+async function loadGenresSection() {
+  const container = document.getElementById('genresContent');
+  if (!container || container.dataset.loaded === 'true') return;
+
+  // Show skeleton loader
+  const skeleton = document.getElementById('genresSkeleton');
+  const grid = document.getElementById('genresGrid');
+  if (skeleton) skeleton.style.display = 'grid';
+  if (grid) grid.innerHTML = '';
+  
+  try {
+    // ✅ FIX: Load favorites state before rendering
+    await loadFavoritesState();
+    
+    // Get all available genres
+    const genresResponse = await fetch('/api/songs/genres');
+    const genres = await genresResponse.json();
+    
+    if (genres.length === 0) {
+      container.dataset.loaded = 'true';
+      container.innerHTML = `
+        <div style="padding: 60px 20px; min-height: 100vh;">
+          <div class="section">
+            <h2>🎵 Browse by Genre</h2>
+            <div class="empty-state">
+              <div class="empty-state-icon">🎵</div>
+              <h3>No genres available yet</h3>
+              <p>Songs will appear here once added with genre tags</p>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+    
+    // Genre emojis and colors
+    const genreData = {
+      'Pop': { emoji: '🎤', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+      'Rock': { emoji: '🎸', color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+      'Jazz': { emoji: '🎷', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+      'Classical': { emoji: '🎻', color: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+      'Hip-Hop': { emoji: '🎤', color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+      'R&B': { emoji: '🎹', color: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
+      'Indie': { emoji: '🎵', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' },
+      'Electronic': { emoji: '🎚️', color: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' },
+      'Folk': { emoji: '🪕', color: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
+      'Country': { emoji: '🤠', color: 'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)' },
+      'Metal': { emoji: '🤘', color: 'linear-gradient(135deg, #e96443 0%, #904e95 100%)' },
+      'Soul': { emoji: '🎤', color: 'linear-gradient(135deg, #f857a6 0%, #ff5858 100%)' },
+      'Bollywood': { emoji: '🎬', color: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' },
+      'Semi-Classical': { emoji: '🎼', color: 'linear-gradient(135deg, #c3cfe2 0%, #c3cfe2 100%)' },
+    };
+    
+    let html = `
+      <!-- GLOBAL STYLES FOR THE GENRE SECTION -->
+      <style>
+        .genre-master-container {
+          padding: 60px 4vw 140px 4vw;
+          min-height: 100vh;
+          font-family: 'Inter', sans-serif;
+        }
+
+        .genre-hero {
+          text-align: center;
+          margin-bottom: 90px;
+          position: relative;
+        }
+
+        .genre-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 8px 20px;
+          border-radius: 50px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 24px;
+          backdrop-filter: blur(12px);
+          color: #a1a1aa;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          font-size: 0.85rem;
+          font-weight: 700;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        .genre-hero h1 {
+          font-size: clamp(3rem, 8vw, 6rem);
+          font-weight: 900;
+          letter-spacing: -2.5px;
+          margin: 0 0 16px 0;
+          line-height: 1.05;
+          color: #ffffff;
+        }
+
+        .genre-hero h1 span {
+          background: linear-gradient(to right, #00f2fe, #4facfe, #00f2fe);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: shine 4s linear infinite;
+        }
+
+        @keyframes shine {
+          to { background-position: 200% center; }
+        }
+
+        .genre-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 30px;
+          max-width: 1500px;
+          margin: 0 auto;
+        }
+
+        .premium-genre-card {
+          position: relative;
+          height: 260px;
+          border-radius: 28px;
+          overflow: hidden;
+          background: #111;
+          cursor: pointer;
+          transition: all 0.5s cubic-bezier(0.25, 1, 0.25, 1);
+          transform-style: preserve-3d;
+          border: 1px solid rgba(255,255,255,0.05);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .premium-genre-card:hover {
+          transform: translateY(-12px) scale(1.02);
+          box-shadow: 0 24px 50px rgba(0,0,0,0.6);
+          border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .premium-genre-card .card-bg {
+          position: absolute;
+          inset: 0;
+          opacity: 0.15;
+          transition: opacity 0.5s ease;
+        }
+
+        .premium-genre-card:hover .card-bg {
+          opacity: 0.4;
+        }
+
+        .premium-genre-card .blob {
+          position: absolute;
+          width: 250px;
+          height: 250px;
+          background: currentColor;
+          border-radius: 50%;
+          filter: blur(60px);
+          opacity: 0.5;
+          top: -50px;
+          right: -50px;
+          transition: all 0.6s ease;
+        }
+
+        .premium-genre-card:hover .blob {
+          transform: scale(1.3);
+          opacity: 0.7;
+        }
+
+        .premium-genre-card .card-content {
+          position: absolute;
+          inset: 0;
+          padding: 30px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
+        }
+
+        .premium-genre-card .emoji-main {
+          position: absolute;
+          top: 24px;
+          left: 24px;
+          font-size: 3.5rem;
+          filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));
+          transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .premium-genre-card:hover .emoji-main {
+          transform: scale(1.2) rotate(10deg);
+        }
+
+        .premium-genre-card h3 {
+          font-size: 2.2rem;
+          font-weight: 900;
+          margin: 0 0 6px 0;
+          color: white;
+          letter-spacing: -1px;
+          text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .premium-genre-card .track-count {
+          display: inline-flex;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(10px);
+          padding: 6px 16px;
+          border-radius: 30px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: rgba(255,255,255,0.9);
+          border: 1px solid rgba(255,255,255,0.1);
+          width: fit-content;
+        }
+
+        .premium-genre-card .overlay-action {
+          position: absolute;
+          bottom: 30px;
+          right: 30px;
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: white;
+          color: black;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.5rem;
+          opacity: 0;
+          transform: translateX(20px) rotate(-45deg);
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .premium-genre-card:hover .overlay-action {
+          opacity: 1;
+          transform: translateX(0) rotate(0deg);
+        }
+
+        /* List Headers styling */
+        .genre-list-header {
+          position: relative;
+          padding: 40px;
+          border-radius: 30px;
+          margin-bottom: 40px;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #151515;
+          border: 1px solid rgba(255,255,255,0.05);
+          box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .genre-list-header .header-bg {
+          position: absolute;
+          inset: 0;
+          opacity: 0.2;
+          z-index: 0;
+        }
+
+        .genre-list-header .header-content {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          gap: 24px;
+        }
+
+        .genre-list-header h2 {
+          font-size: 3rem;
+          font-weight: 900;
+          margin: 0;
+          letter-spacing: -1.5px;
+          color: white;
+        }
+
+        .genre-list-header p {
+          margin: 8px 0 0 0;
+          color: rgba(255,255,255,0.7);
+          font-size: 1.1rem;
+          font-weight: 500;
+        }
+
+        .genre-list-header .header-emoji {
+          font-size: 4rem;
+          background: rgba(255,255,255,0.1);
+          width: 90px;
+          height: 90px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 24px;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.1);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .back-to-top-btn {
+          position: relative;
+          z-index: 1;
+          background: rgba(255,255,255,0.05);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: white;
+          padding: 12px 24px;
+          border-radius: 30px;
+          font-weight: 600;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .back-to-top-btn:hover {
+          background: rgba(255,255,255,0.15);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+      </style>
+
+      <div class="genre-master-container">
+        
+        <!-- Hero Header -->
+        <div class="genre-hero">
+          <div class="genre-badge">
+            ✨ High-Fidelity Audio Curations
+          </div>
+          <h1>
+            Sounds by <span>Genre</span>
+          </h1>
+          <p style="font-size: 1.25rem; color: #a1a1aa; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+            Immerse yourself in world-class collections representing the best of every musical style. Let your emotions guide the rhythm.
+          </p>
+        </div>
+        
+        <!-- Premium Genres Grid -->
+        <div class="genre-grid">
+    `;
+    
+    // Fetch all songs for all genres concurrently
+    const songPromises = genres.map(genre => 
+      fetch(`/api/songs/by-genre?genre=${encodeURIComponent(genre)}`).then(r => r.json())
+    );
+    const allGenreSongs = await Promise.all(songPromises);
+    
+    // Create a dictionary for quick lookup later
+    const genreSongsMap = {};
+    genres.forEach((genre, i) => {
+      genreSongsMap[genre] = allGenreSongs[i];
+    });
+
+    // Load songs for each genre and create the cards
+    for (const genre of genres) {
+      const genreSongs = genreSongsMap[genre] || [];
+      
+      if (genreSongs.length === 0) continue;
+      
+      // Expanded Data with base colors for the glow
+      const premiumGenreData = {
+        'Pop': { emoji: '🎤', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', base: '#764ba2' },
+        'Rock': { emoji: '🎸', color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', base: '#f5576c' },
+        'Jazz': { emoji: '🎷', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', base: '#00f2fe' },
+        'Classical': { emoji: '🎻', color: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', base: '#38f9d7' },
+        'Hip-Hop': { emoji: '🎤', color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', base: '#fa709a' },
+        'R&B': { emoji: '🎹', color: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', base: '#30cfd0' },
+        'Indie': { emoji: '🎵', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', base: '#fed6e3' },
+        'Electronic': { emoji: '🎚️', color: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', base: '#ff9a9e' },
+        'Folk': { emoji: '🪕', color: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', base: '#fcb69f' },
+        'Country': { emoji: '🤠', color: 'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)', base: '#ff6e7f' },
+        'Metal': { emoji: '🤘', color: 'linear-gradient(135deg, #e96443 0%, #904e95 100%)', base: '#e96443' },
+        'Soul': { emoji: '🎤', color: 'linear-gradient(135deg, #f857a6 0%, #ff5858 100%)', base: '#f857a6' },
+        'Bollywood': { emoji: '🎬', color: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', base: '#fda085' },
+        'Semi-Classical': { emoji: '🎼', color: 'linear-gradient(135deg, #c3cfe2 0%, #c3cfe2 100%)', base: '#c3cfe2' }
+      };
+
+      const genreInfo = premiumGenreData[genre] || { 
+        emoji: '🎵', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', base: '#764ba2' 
+      };
+      
+      html += `
+        <!-- Premium Genre Card -->
+        <div class="premium-genre-card" onclick="document.getElementById('genre_${genre.replace(/\s/g, '_')}').scrollIntoView({ behavior: 'smooth', block: 'start' });">
+          
+          <div class="card-bg" style="background: ${genreInfo.color};"></div>
+          <div class="blob" style="color: ${genreInfo.base};"></div>
+          
+          <div class="emoji-main">${genreInfo.emoji}</div>
+
+          <div class="card-content">
+            <div>
+              <h3>${genre}</h3>
+              <div class="track-count">
+                ${genreSongs.length} ${genreSongs.length === 1 ? 'Masterpiece' : 'Masterpieces'}
+              </div>
+            </div>
+            
+            <div class="overlay-action">
+              ▶
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    html += `
+        </div>
+        
+        <!-- Detailed Genre Collections -->
+        <div style="margin-top: 120px; max-width: 1500px; margin-left: auto; margin-right: auto;">
+    `;
+    
+    // Detailed song listings for each genre
+    for (const genre of genres) {
+      const genreSongs = genreSongsMap[genre] || [];
+      
+      if (genreSongs.length === 0) continue;
+      
+      const premiumGenreData = {
+        'Pop': { emoji: '🎤', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', base: '#764ba2' },
+        'Rock': { emoji: '🎸', color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', base: '#f5576c' },
+        'Jazz': { emoji: '🎷', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', base: '#00f2fe' },
+        'Classical': { emoji: '🎻', color: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', base: '#38f9d7' },
+        'Hip-Hop': { emoji: '🎤', color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', base: '#fa709a' },
+        'R&B': { emoji: '🎹', color: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', base: '#30cfd0' },
+        'Indie': { emoji: '🎵', color: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', base: '#fed6e3' },
+        'Electronic': { emoji: '🎚️', color: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', base: '#ff9a9e' },
+        'Folk': { emoji: '🪕', color: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', base: '#fcb69f' },
+        'Country': { emoji: '🤠', color: 'linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%)', base: '#ff6e7f' },
+        'Metal': { emoji: '🤘', color: 'linear-gradient(135deg, #e96443 0%, #904e95 100%)', base: '#e96443' },
+        'Soul': { emoji: '🎤', color: 'linear-gradient(135deg, #f857a6 0%, #ff5858 100%)', base: '#f857a6' },
+        'Bollywood': { emoji: '🎬', color: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', base: '#fda085' },
+        'Semi-Classical': { emoji: '🎼', color: 'linear-gradient(135deg, #c3cfe2 0%, #c3cfe2 100%)', base: '#c3cfe2' }
+      };
+
+      const genreInfo = premiumGenreData[genre] || { 
+        emoji: '🎵', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', base: '#764ba2'
+      };
+      
+      html += `
+        <div id="genre_${genre.replace(/\s/g, '_')}" style="margin-bottom: 100px; scroll-margin-top: 100px;">
+          
+          <!-- Epic List Header -->
+          <div class="genre-list-header">
+            <div class="header-bg" style="background: ${genreInfo.color};"></div>
+            
+            <div class="header-content">
+              <div class="header-emoji">${genreInfo.emoji}</div>
+              <div>
+                <h2>${genre} <span style="font-weight: 300;">Collection</span></h2>
+                <p>Carefully selected • ${genreSongs.length} ${genreSongs.length === 1 ? 'Track' : 'Tracks'}</p>
+              </div>
+            </div>
+            
+            <button class="back-to-top-btn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })">
+              ↑ Back to Top
+            </button>
+          </div>
+          
+          <!-- Standard App Songs Grid (Leaves functionality perfectly intact) -->
+          <div class="grid">
+      `;
+      
+      genreSongs.forEach(song => {
+        const isFavorited = (allSongs.find(s => s.id === song._id) || {}).favorited || false;
+        
+        html += `
+          <div class="song-card">
+            <div class="song-card-image" onclick="playSongById('${song._id}')">
+              <img src="${song.coverUrl || 'https://picsum.photos/400/400?random=' + song._id}" alt="${song.title}" loading="lazy" />
+              <div class="play-overlay">
+                <div class="play-button">▶</div>
+              </div>
+            </div>
+            <div class="title">${song.title}</div>
+            <div class="artist">${song.artist}</div>
+            <div class="song-card-footer">
+              <button class="song-play-btn" onclick="playSongById('${song._id}')" title="Play">▶</button>
+              <button class="song-favorite-btn ${isFavorited ? 'favorited' : ''}" onclick="toggleFavorite(event, '${song._id}')" title="Favorite">
+                ${isFavorited ? '❤️' : '🤍'}
+              </button>
+              <button class="song-favorite-btn" onclick="openAddToPlaylistModal('${song._id}')" title="Add to Playlist" style="margin-left: 4px;">
+                📋
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      
+      html += `
+          </div>
+        </div>
+      `;
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+    
+    container.dataset.loaded = 'true';
+    container.innerHTML = html;
+    console.log('✅ Genres section loaded');
+    
+  } catch (error) {
+    console.error('Error loading genres:', error);
+    container.dataset.loaded = 'true';
+    container.innerHTML = `
+      <div style="padding: 60px 20px; min-height: 100vh;">
+        <div class="empty-state">
+          <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+          <h3>Oops! Something went wrong</h3>
+          <p style="margin-bottom: 24px;">We couldn't load the genres. Please try again.</p>
+          <button class="play-btn" onclick="loadGenresSection(); container.dataset.loaded = false;">🔄 Retry</button>
+        </div>
+      </div>
+    `;
+  }
+}
 </script>
 </body>
 </html>

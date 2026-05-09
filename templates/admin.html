@@ -558,7 +558,8 @@
         <p class="subtitle">Manage users, songs, and analytics</p>
       </div>
       <div class="header-right">
-        <button class="btn btn-secondary" onclick="window.location.href='/home'">← Back to Home</button>
+        <!-- Displayed for all admins to switch back to user mode -->
+        <button class="btn btn-secondary" id="backToHomeBtn" onclick="window.location.href='/home'">← Go to User Mode</button>
         <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
         <button class="btn btn-danger" onclick="handleLogout()">🚪 Logout</button>
       </div>
@@ -765,9 +766,10 @@
               <label>Title *</label>
               <input type="text" id="songTitle" required placeholder="Song title" />
             </div>
-            <div class="form-group">
+            <div class="form-group" style="position: relative;">
               <label>Artist *</label>
-              <input type="text" id="songArtist" required placeholder="Artist name" />
+              <input type="text" id="songArtist" list="existingArtists" autocomplete="off" required placeholder="Type or select existing artist..." />
+              <datalist id="existingArtists"></datalist>
             </div>
           </div>
            <!-- NEW LANGUAGE FIELD -->
@@ -777,6 +779,27 @@
               <input type="text" id="songLanguage" required placeholder="e.g., English, Hindi, Punjabi, etc." />
               </div>
 
+
+              <div class="form-group">
+  <label>Genre *</label>
+  <select id="songGenre" required style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; color: #f5f7fa; font-size: 0.95rem; font-family: inherit; cursor: pointer;">
+    <option value="">-- Select Genre --</option>
+    <option value="Pop">🎤 Pop</option>
+    <option value="Rock">🎸 Rock</option>
+    <option value="Jazz">🎷 Jazz</option>
+    <option value="Classical">🎻 Classical</option>
+    <option value="Semi-Classical">🎼 Semi-Classical</option>
+    <option value="Hip-Hop">🎤 Hip-Hop</option>
+    <option value="R&B">🎹 R&B</option>
+    <option value="Indie">🎵 Indie</option>
+    <option value="Electronic">🎚️ Electronic</option>
+    <option value="Folk">🪕 Folk</option>
+    <option value="Country">🤠 Country</option>
+    <option value="Metal">🤘 Metal</option>
+    <option value="Soul">🎤 Soul</option>
+    <option value="Bollywood">🎬 Bollywood</option>
+  </select>
+</div>
           <div class="grid-2">
             <div class="form-group">
               <label>Artist Photo (Upload or URL)</label>
@@ -873,6 +896,25 @@
 <div class="form-group">
   <label>Language *</label>
   <input type="text" id="editSongLanguage" required placeholder="e.g., English, Hindi, Punjabi, etc." />
+</div><div class="form-group">
+  <label>Genre *</label>
+  <select id="editSongGenre" required style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; color: #f5f7fa; font-size: 0.95rem; font-family: inherit; cursor: pointer;">
+    <option value="">-- Select Genre --</option>
+    <option value="Pop">🎤 Pop</option>
+    <option value="Rock">🎸 Rock</option>
+    <option value="Jazz">🎷 Jazz</option>
+    <option value="Classical">🎻 Classical</option>
+    <option value="Semi-Classical">🎼 Semi-Classical</option>
+    <option value="Hip-Hop">🎤 Hip-Hop</option>
+    <option value="R&B">🎹 R&B</option>
+    <option value="Indie">🎵 Indie</option>
+    <option value="Electronic">🎚️ Electronic</option>
+    <option value="Folk">🪕 Folk</option>
+    <option value="Country">🤠 Country</option>
+    <option value="Metal">🤘 Metal</option>
+    <option value="Soul">🎤 Soul</option>
+    <option value="Bollywood">🎬 Bollywood</option>
+  </select>
 </div>
 
             <div class="grid-2">
@@ -955,6 +997,7 @@
           setTimeout(() => window.location.href = '/home', 1000);
         } else {
           console.log('✓ Admin authenticated:', user.email);
+          window.currentUserEmail = user.email; // Save for permission checks
           loadAllData();
         }
       })
@@ -968,7 +1011,8 @@
       await Promise.all([
         loadStats(),
         loadUsers(),
-        loadSongs()
+        loadSongs(),
+        loadArtists()
       ]);
       hideAdminSkeletons();
     }
@@ -1044,16 +1088,46 @@
               <button class="btn btn-secondary btn-small" onclick="viewUserDetails(${user.id})">
                 👁️ View
               </button>
+              ${window.currentUserEmail === 'admin@music.com' && user.email !== 'admin@music.com' ? `
+                <button class="btn ${user.isAdmin ? 'btn-danger' : 'btn-success'} btn-small" 
+                        onclick="toggleAdminStatus(${user.id}, ${user.isAdmin})">
+                  ${user.isAdmin ? 'Demote' : 'Promote'}
+                </button>
+              ` : ''}
               ${!user.isAdmin ? `
                 <button class="btn ${user.isActive ? 'btn-danger' : 'btn-success'} btn-small" 
                         onclick="toggleUserStatus(${user.id}, ${user.isActive})">
                   ${user.isActive ? 'Disable' : 'Enable'}
                 </button>
-              ` : '<span style="color: #a2a9b8; font-size: 0.875rem;">Protected</span>'}
+              ` : (user.email === 'admin@music.com' ? '<span style="color: #a2a9b8; font-size: 0.875rem;">Main Admin</span>' : '<span style="color: #a2a9b8; font-size: 0.875rem;">Protected</span>')}
             </div>
           </td>
         </tr>
       `).join('');
+    }
+
+    // Toggle admin status
+    async function toggleAdminStatus(userId, currentStatus) {
+      const action = currentStatus ? 'demote from Admin' : 'promote to Admin';
+      if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+
+      try {
+        showNotification('⏳ Updating admin status...');
+        const response = await fetch(`/api/admin/users/${userId}/toggle-admin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showNotification('✓ ' + data.message);
+          loadUsers(); // Refresh the list
+        } else {
+          showNotification('❌ ' + (data.error || 'Failed to update admin status'));
+        }
+      } catch (error) {
+        showNotification('❌ Network error occurred');
+      }
     }
 
     // Toggle user status
@@ -1123,11 +1197,53 @@
       <button class="btn btn-danger btn-small" onclick="deleteSong('${song._id}', '${song.title}')">
         Delete
       </button>
-    </div>
-  </div>
+ </div>
 `).join('');
 
     }
+
+    // Artist Management for Datalist
+    let existingArtistsData = [];
+    async function loadArtists() {
+      try {
+        const response = await fetch('/api/artists');
+        const data = await response.json();
+        existingArtistsData = data.artists || [];
+        const datalist = document.getElementById('existingArtists');
+        datalist.innerHTML = '';
+        existingArtistsData.forEach(artist => {
+          const option = document.createElement('option');
+          option.value = artist.name;
+          datalist.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading artists:', error);
+      }
+    }
+
+    // Auto-fill artist photo when selecting an existing artist
+    document.getElementById('songArtist').addEventListener('input', (e) => {
+      const name = e.target.value.trim();
+      const artist = existingArtistsData.find(a => a.name.toLowerCase() === name.toLowerCase());
+      
+      const artistPhotoUrlInput = document.getElementById('artistPhotoUrl');
+      const artistPhotoFileInput = document.getElementById('artistPhotoFile');
+      const artistPhotoPreview = document.getElementById('artistPhotoPreview');
+      
+      if (artist && artist.photoUrl) {
+        // Pre-fill the URL, disable inputs so user doesn't upload again
+        artistPhotoUrlInput.value = artist.photoUrl;
+        artistPhotoUrlInput.disabled = true;
+        artistPhotoFileInput.disabled = true;
+        artistPhotoPreview.innerHTML = `<p style="font-size:0.8rem; color:#aaa; margin-bottom:5px;">Existing photo selected:</p><img src="${artist.photoUrl}" style="max-width: 100px; border-radius: 8px;">`;
+      } else {
+        // Allow uploads if new artist
+        artistPhotoUrlInput.value = '';
+        artistPhotoUrlInput.disabled = false;
+        artistPhotoFileInput.disabled = false;
+        artistPhotoPreview.innerHTML = ''; // Keep any user preview logic or clear it
+      }
+    });
 
     // Add song form submission
     document.getElementById('addSongForm').addEventListener('submit', async (e) => {
@@ -1137,6 +1253,8 @@
       const artist = document.getElementById('songArtist').value.trim();
       const language = document.getElementById('songLanguage').value;  // NEW LINE
       // Get emotions
+      const genre = document.getElementById('songGenre').value;
+
       const emotions = Array.from(document.querySelectorAll('#emotionCheckboxes input:checked'))
         .map(cb => cb.value);
 
@@ -1153,6 +1271,7 @@
         formData.append('title', title);
         formData.append('artist', artist);
         formData.append('language', language);  // NEW LINE
+        formData.append('genre', genre);
         formData.append('emotions', JSON.stringify(emotions));
 
         // Handle audio file or URL
@@ -1302,6 +1421,7 @@
       document.getElementById('editArtistPhotoUrl').value = song.artistPhotoUrl || '';
       document.getElementById('editSongAudioUrl').value = song.audioUrl || '';
       document.getElementById('editSongLanguage').value = song.language || 'English';
+      document.getElementById('editSongGenre').value = song.genre || 'Pop';
       
       // Reset file inputs
       document.getElementById('editCoverImageFile').value = '';
@@ -1350,6 +1470,8 @@
       const title = document.getElementById('editSongTitle').value.trim();
       const artist = document.getElementById('editSongArtist').value.trim();
       const language = document.getElementById('editSongLanguage').value;
+      const genre = document.getElementById('editSongGenre').value;
+
       const emotions = Array.from(document.querySelectorAll('#editEmotionCheckboxes input:checked'))
         .map(cb => cb.value);
 
@@ -1412,6 +1534,7 @@
               title,
               artist,
               language,
+              genre,
               coverUrl: coverUrl || undefined,
               artistPhotoUrl: artistPhotoUrl || undefined,
               audioUrl: audioUrl || undefined,
