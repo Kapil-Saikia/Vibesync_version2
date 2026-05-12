@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory
 import cv2
 from tensorflow import keras
 import tensorflow as tf
@@ -447,6 +447,10 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def is_admin_session():
+    """Return True when the session belongs to an admin or sub-admin."""
+    return session.get('is_admin', False) or session.get('is_sub_admin', False)
+
 def admin_required(f):
     """Decorator to require admin privileges"""
     @wraps(f)
@@ -454,7 +458,7 @@ def admin_required(f):
         if 'user_id' not in session:
             return jsonify({'error': 'Login required'}), 401
         
-        if not session.get('is_admin', False):
+        if not is_admin_session():
             return jsonify({'error': 'Admin privileges required'}), 403
         
         return f(*args, **kwargs)
@@ -601,6 +605,7 @@ def signup():
         session['email'] = email
         session['first_name'] = first_name
         session['is_admin'] = False
+        session['is_sub_admin'] = False
         session['session_id'] = new_session_id  # Store session ID for validation
         
         print(f"✓ New user registered and logged in: {email} | Single Session Enabled")
@@ -614,7 +619,8 @@ def signup():
                 'firstName': first_name,
                 'lastName': last_name,
                 'email': email,
-                'isAdmin': False
+                'isAdmin': False,
+                'isSubAdmin': False
             }
         }), 201
         
@@ -682,10 +688,12 @@ def login():
         session['user_id'] = user['id']
         session['email'] = user['email']
         session['first_name'] = user['first_name']
+        is_sub_admin = bool(user.get('is_sub_admin', False))
         session['is_admin'] = bool(user['is_admin'])
+        session['is_sub_admin'] = is_sub_admin
         session['session_id'] = new_session_id  # Store session ID for validation
         
-        redirect_url = '/admin' if user['is_admin'] else '/home'
+        redirect_url = '/admin' if (user['is_admin'] or is_sub_admin) else '/home'
         
         print(f"✓ User logged in: {email} (Admin: {bool(user['is_admin'])}) | Single Session Enabled")
         
@@ -698,7 +706,8 @@ def login():
                 'firstName': user['first_name'],
                 'lastName': user['last_name'],
                 'email': user['email'],
-                'isAdmin': bool(user['is_admin'])
+                'isAdmin': bool(user['is_admin']),
+                'isSubAdmin': is_sub_admin
             }
         }), 200
         
@@ -773,6 +782,7 @@ def get_current_user():
         'lastName': user['last_name'],
         'email': user['email'],
         'isAdmin': bool(user['is_admin']),
+        'isSubAdmin': bool(user.get('is_sub_admin', False)),
         'createdAt': user['created_at'].isoformat() if user['created_at'] else None,
         'lastLogin': user['last_login'].isoformat() if user['last_login'] else None
     }), 200
@@ -784,10 +794,20 @@ def get_current_user():
 @app.route('/')
 def index():
     if 'user_id' in session:
-        if session.get('is_admin', False):
+        if is_admin_session():
             return redirect('/admin')
         return redirect('/home')
     return redirect('/login')
+
+@app.route('/sw.js')
+def service_worker():
+    response = send_from_directory('static', 'sw.js')
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+@app.route('/.well-known/assetlinks.json')
+def asset_links():
+    return send_from_directory(os.path.join(app.root_path, 'static', '.well-known'), 'assetlinks.json', mimetype='application/json')
 
 @app.route('/home')
 @login_required
@@ -797,7 +817,7 @@ def home():
 @app.route('/admin')
 @login_required
 def admin():
-    if not session.get('is_admin', False):
+    if not is_admin_session():
         return redirect('/home')
     return render_template('admin.html')
 

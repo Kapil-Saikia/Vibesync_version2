@@ -1,0 +1,16 @@
+{
+  "packageId": "com.vibesync.app",
+  "host": "your-domain.com",
+  "name": "VibeSync",
+  "launcherName": "VibeSync",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#7c3aed",
+  "backgroundColor": "#05060a",
+  "startUrl": "/?source=twa",
+  "iconUrl": "https://your-domain.com/static/assets/icons/icon-512.png",
+  "maskableIconUrl": "https://your-domain.com/static/assets/icons/icon-512-maskable.png",
+  "splashScreenFadeOutDuration": 300,
+  "enableNotifications": false,
+  "fallbackType": "customtabs"
+}
