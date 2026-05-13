@@ -216,6 +216,8 @@ window.sharedAudioPlayer = {
     },
     
     trackRecentlyPlayed(song) {
+        const recentlyContent = document.getElementById('recentlyContent');
+        if (recentlyContent) recentlyContent.dataset.loaded = 'false';
         fetch('/api/recently-played', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
