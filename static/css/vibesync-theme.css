@@ -1,29 +1,26 @@
 :root {
-  --vs-bg-primary: #05060b;
-  --vs-bg-secondary: #0c1020;
-  --vs-bg-tertiary: #141a2f;
-  --vs-surface: rgba(14, 18, 34, 0.72);
-  --vs-surface-strong: rgba(20, 26, 44, 0.9);
-  --vs-text-primary: #f5f9ff;
-  --vs-text-secondary: #b4c4df;
+  --vs-bg-primary: #05060a;
+  --vs-bg-secondary: #101223;
+  --vs-bg-tertiary: #191c32;
+  --vs-surface: rgba(255, 255, 255, 0.04);
+  --vs-surface-strong: rgba(255, 255, 255, 0.08);
+  --vs-text-primary: #f8fbff;
+  --vs-text-secondary: #a5b4ce;
   --vs-text-muted: #6f7d96;
   --vs-accent: #ec4899;
   --vs-accent-2: #7c3aed;
-  --vs-accent-3: #22d3ee;
-  --vs-accent-4: #f97316;
+  --vs-accent-3: #14b8a6;
   --vs-danger: #f43f5e;
   --vs-warning: #fbbf24;
   --vs-success: #34d399;
   --vs-radius-sm: 10px;
   --vs-radius-md: 16px;
   --vs-radius-lg: 24px;
-  --vs-blur: 22px;
-  --vs-shadow-soft: 0 18px 50px rgba(4, 6, 15, 0.45);
-  --vs-shadow-strong: 0 30px 90px rgba(2, 4, 12, 0.75);
-  --vs-shadow-glow: 0 0 32px rgba(124, 58, 237, 0.35), 0 0 80px rgba(236, 72, 153, 0.25);
-  --vs-gradient: linear-gradient(135deg, #7c3aed 0%, #ec4899 45%, #22d3ee 100%);
-  --vs-gradient-soft: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(34, 211, 238, 0.2));
-  --vs-gradient-hero: linear-gradient(120deg, rgba(124, 58, 237, 0.9), rgba(236, 72, 153, 0.85), rgba(34, 211, 238, 0.8));
+  --vs-blur: 18px;
+  --vs-shadow-soft: 0 15px 45px rgba(0, 0, 0, 0.35);
+  --vs-shadow-strong: 0 25px 80px rgba(5, 6, 10, 0.65);
+  --vs-gradient: linear-gradient(135deg, #7c3aed 0%, #ec4899 45%, #f97316 100%);
+  --vs-gradient-soft: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(236, 72, 153, 0.25));
   --vs-border: rgba(255, 255, 255, 0.08);
   --vs-border-strong: rgba(255, 255, 255, 0.16);
   --vs-transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
@@ -38,15 +35,14 @@
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   margin: 0;
-  background: radial-gradient(circle at 15% 20%, rgba(124, 58, 237, 0.28), transparent 40%),
-              radial-gradient(circle at 85% 10%, rgba(34, 211, 238, 0.22), transparent 38%),
-              radial-gradient(circle at 50% 85%, rgba(236, 72, 153, 0.18), transparent 45%),
+  background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.22), transparent 40%),
+              radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.22), transparent 35%),
+              radial-gradient(circle at 50% 80%, rgba(236, 72, 153, 0.14), transparent 45%),
               var(--vs-bg-primary);
   color: var(--vs-text-primary);
   min-height: 100vh;
   line-height: 1.65;
   background-attachment: fixed;
-  color-scheme: dark;
 }
 
 a {
@@ -150,7 +146,7 @@ button,
   color: #fff;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.35);
+  box-shadow: 0 12px 28px rgba(236, 72, 153, 0.35);
 }
 
 button::before,
@@ -174,7 +170,7 @@ button:hover,
 .btn:hover,
 [class*="btn"]:hover {
   transform: translateY(-3px);
-  box-shadow: 0 20px 45px rgba(236, 72, 153, 0.45);
+  box-shadow: 0 20px 40px rgba(236, 72, 153, 0.45);
 }
 
 .btn-secondary,
@@ -205,39 +201,6 @@ button.outline {
 .btn-danger {
   background: linear-gradient(135deg, #f43f5e, #fb7185);
   box-shadow: 0 15px 35px rgba(244, 63, 94, 0.4);
-}
-
-.glass-panel {
-  background: var(--vs-surface);
-  border: 1px solid var(--vs-border);
-  border-radius: var(--vs-radius-lg);
-  backdrop-filter: blur(var(--vs-blur));
-  box-shadow: var(--vs-shadow-soft);
-}
-
-.text-gradient {
-  background: linear-gradient(120deg, #fdf2f8 0%, #e9d5ff 40%, #bae6fd 70%, #fdf2f8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.badge-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(124, 58, 237, 0.18);
-  border: 1px solid rgba(124, 58, 237, 0.45);
-  color: #e9d5ff;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.muted {
-  color: var(--vs-text-muted);
 }
 
 /* Forms */
@@ -774,6 +737,8 @@ tr:hover td {
     visibility: visible;
   }
 }
+
+.music-player {
   background: rgba(5, 6, 10, 0.95);
 }
 
@@ -957,3 +922,27 @@ tr:hover td {
   backdrop-filter: blur(18px);
 }
 
+
+/* PWA / MOBILE APP BEHAVIORS */
+html, body {
+  /* Prevent pull-to-refresh */
+  overscroll-behavior-y: none;
+  /* Disable highlight on tap */
+  -webkit-tap-highlight-color: transparent;
+  /* Disable long-press context menu on most UI elements */
+  -webkit-touch-callout: none;
+}
+
+/* Hide scrollbars completely to feel like an app */
+::-webkit-scrollbar {
+  display: none !important;
+}
+* {
+  scrollbar-width: none !important;
+}
+
+/* Allow text selection in inputs specifically */
+input, textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
