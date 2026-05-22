@@ -27,10 +27,7 @@ CORS(app)
 from dotenv import load_dotenv
 load_dotenv()
 
-print("\n🔄 Load Custom Emotion Detection Model...")
-MODEL_PATH = 'fer2013_best_model.keras'
-# emotion_model = keras.models.load_model(MODEL_PATH) # Pretend we load it
-EMOTION_LABELS = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+
 
 import cloudinary
 import cloudinary.uploader
