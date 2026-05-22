@@ -1,7 +1,5 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
-from tensorflow import keras
-import tensorflow as tf
 import numpy as np
 import base64
 import io
