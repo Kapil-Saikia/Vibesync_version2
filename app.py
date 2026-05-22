@@ -1001,7 +1001,7 @@ def detect_emotion():
         cursor.close()
         release_db_connection(conn)
 
-        # --- ADVANCED HYBRID RULES-BASED RECOMMENDATION ENGINE ---
+        # --- HYBRID RECOMMENDATION ENGINE ---
         import random
         user_id = session.get('user_id')
         
@@ -1017,163 +1017,73 @@ def detect_emotion():
         cursor.execute("SELECT song_id FROM dislikes WHERE user_id = %s", (user_id,))
         dislikes = {row['song_id'] for row in cursor.fetchall()}
         
-        # Get Play History (Frequency & Artist Preferences)
-        cursor.execute("SELECT song_id, played_at FROM recently_played WHERE user_id = %s ORDER BY played_at DESC LIMIT 100", (user_id,))
+        # Get Play History (Recent & Frequency)
+        cursor.execute("SELECT song_id, played_at FROM recently_played WHERE user_id = %s ORDER BY played_at DESC", (user_id,))
         play_history = cursor.fetchall()
-        
-        # --- NEW: Get Global Collaborative Data for New Users ---
-        # Understands what OTHER users liked, mimicking collaborative filtering baseline
-        cursor.execute("SELECT song_id, COUNT(*) as f_count FROM favorites GROUP BY song_id")
-        global_favorites = {row['song_id']: row['f_count'] for row in cursor.fetchall()}
         
         cursor.close()
         release_db_connection(conn)
 
-        # Calculate play frequencies, recency, and decay over time
+        # Calculate play frequencies and recency
         play_counts = {}
         recent_plays = set()
-        from datetime import datetime
-        now = datetime.now()
-        
         for idx, row in enumerate(play_history):
             s_id = row['song_id']
-            played_at = row['played_at']
-            
-            # Recency Weighting (Exponential Decay like in Hybrid_recommendation.py)
-            if played_at:
-                age_days = (now - played_at).days
-                recency_weight = max(0.1, 1.0 - (age_days / 30.0))  # Decays over 30 days
-            else:
-                recency_weight = 0.5
-                
-            play_counts[s_id] = play_counts.get(s_id, 0) + (1 * recency_weight)
-            
-            if idx < 15:  # Top 15 absolute most recent plays
+            play_counts[s_id] = play_counts.get(s_id, 0) + 1
+            if idx < 15:  # Top 15 most recent plays
                 recent_plays.add(s_id)
 
         # 2. Fetch Candidate Songs from MongoDB
-        # Get high-confidence emotion-matching songs (Primary Content Filtering)
+        # Get emotion-matching songs
         matching_songs = list(songs_collection.find({'emotions': {'$in': [dominant_emotion.lower()]}}))
         
-        # Emotion Relationship Mapping (Like in Hybrid_recommendation.py)
-        emotion_relationships = {
-            'happy': ['surprise', 'neutral'],
-            'sad': ['fear', 'disgust'],
-            'angry': ['disgust', 'fear'],
-            'surprise': ['happy', 'fear'],
-            'fear': ['sad', 'surprise'],
-            'disgust': ['sad', 'angry'],
-            'neutral': ['happy', 'sad']
-        }
-        
-        related_emotions = emotion_relationships.get(dominant_emotion.lower(), [])
-        related_songs = []
-        if related_emotions:
-             related_songs = list(songs_collection.find({
-                 'emotions': {'$in': related_emotions},
-                 '_id': {'$nin': [s['_id'] for s in matching_songs]}
-             }))
-
-        # Forced Discovery / Serendipity (Prevents Cold-Start Overfitting on small datasets)
+        # Get random sample to ensure discovery/breaking bubbles
         other_songs = list(songs_collection.aggregate([
-            {'$match': {'emotions': {'$nin': [dominant_emotion.lower()] + related_emotions}}},
-            {'$sample': {'size': 20}} # Slightly larger sample to allow strict diversity filtering later
+            {'$match': {'emotions': {'$nin': [dominant_emotion.lower()]}}},
+            {'$sample': {'size': 15}}
         ]))
         
-        candidate_songs = matching_songs + related_songs + other_songs
+        candidate_songs = matching_songs + other_songs
+        # Deduplicate candidates using string ID
         unique_candidate_songs = {str(song['_id']): song for song in candidate_songs}.values()
 
-        # 3. Dynamic Scoring (Simulating Hybrid Weighting)
+        # 3. Dynamic Scoring 
         scored_songs = []
-        
-        # Weights dynamic based on history presence (Simulating Hybrid split)
-        has_history = len(play_history) > 5
-        emotion_weight = 0.60 if not has_history else 0.35
-        behavior_weight = 0.30 if not has_history else 0.50
-        discovery_weight = 0.10 if not has_history else 0.15
-
         for song in unique_candidate_songs:
             song_id = str(song['_id'])
             score = 0.0
             
-            # Strict Filter: Dislikes
-            if song_id in dislikes:
-                continue # Skip scoring entirely, strict removal
-                
+            # Content-Based: Emotion Match (+15 points)
             emotion_list = [e.lower() for e in song.get('emotions', [])]
-            
-            # --- Content/Emotion Scoring ---
-            content_score = 0.0
             if dominant_emotion.lower() in emotion_list:
-                content_score += 100.0 * (confidence / 100.0) # Weighted by AI confidence
-            elif any(e in emotion_list for e in related_emotions):
-                content_score += 60.0 * (confidence / 100.0) # Partial points for related emotion
+                score += 15.0
                 
-            # --- Behavioral/Collaborative Scoring ---
-            behavior_score = 0.0
-            
-            # Personal Behavior
+            # Behavioral: Likes/Favorites (+10 points)
             if song_id in favorites:
-                behavior_score += 80.0
+                score += 10.0
+                
+            # Behavioral: Dislikes (Filter out or heavily penalize)
+            if song_id in dislikes:
+                score -= 100.0  # Basically removes it from valid recommendations
+                
+            # Behavioral: Frequently Listened (up to +10 points)
+            freq = play_counts.get(song_id, 0)
+            score += min(freq * 1.5, 10.0)
             
-            freq_score = play_counts.get(song_id, 0.0)
-            behavior_score += min(freq_score * 10.0, 50.0) # Cap frequency points
-            
+            # Behavioral: Recent History (+4 points)
             if song_id in recent_plays:
-                behavior_score += 20.0
+                score += 4.0
                 
-            # Global Collaborative Baseline (Helps New Users)
-            global_fav_count = global_favorites.get(song_id, 0)
-            if global_fav_count > 0:
-                # Add up to 30 points if the song is globally popular among OTHER users
-                behavior_score += min(global_fav_count * 5.0, 30.0)
-                
-            # --- Combine with Dynamic Weights ---
-            score = (content_score * emotion_weight) + (behavior_score * behavior_weight)
-            
-            # Anti-Monotony Factor (Discovery)
-            score += random.uniform(0.0, 15.0) * discovery_weight
+            # Anti-Monotony Factor:
+            # Adds random noise (0 to 3 points) so we don't return the exact same order for everyone
+            score += random.uniform(0.0, 3.0)
             
             scored_songs.append((score, song))
             
-        # 4. Sort and apply Diversity Filter (Like Hybrid_recommendation.py)
+        # 4. Sort and return Top 10
         scored_songs.sort(key=lambda x: x[0], reverse=True)
+        top_songs = [s[1] for s in scored_songs[:10]]
         
-        top_songs = []
-        artist_counts = {}
-        emotion_counts = {}
-        
-        for score, song in scored_songs:
-            if len(top_songs) >= 10:
-                break
-                
-            artist = song.get('artist', 'Unknown')
-            emotions = song.get('emotions', [])
-            
-            # Diversity Rule 1: Max 3 songs per artist
-            if artist_counts.get(artist, 0) >= 3:
-                continue
-                
-            # Diversity Rule 2: Prevent completely uniform emotion block if possible
-            if len(top_songs) >= 6:
-                over_represented = any(emotion_counts.get(e.lower(), 0) >= 6 for e in emotions)
-                if over_represented and len(scored_songs) > 10: # Only skip if we have backup songs
-                    continue
-            
-            # Add song
-            top_songs.append(song)
-            artist_counts[artist] = artist_counts.get(artist, 0) + 1
-            for e in emotions:
-                emotion_counts[e.lower()] = emotion_counts.get(e.lower(), 0) + 1
-        
-        # Fallback if diversity filter stripped too many
-        if len(top_songs) < 10:
-            existing_ids = {str(s['_id']) for s in top_songs}
-            for score, song in scored_songs:
-                if len(top_songs) >= 10: break
-                if str(song['_id']) not in existing_ids:
-                    top_songs.append(song)
-
         songs = [serialize_song(song) for song in top_songs]
         
         emotion_mapping = {
@@ -1476,8 +1386,7 @@ def upload_song():
             'genre': request.form.get('genre', 'pop').strip(),
             'createdAt': datetime.utcnow(),
             'updatedAt': datetime.utcnow(),
-            'uploadedBy': session.get('email', 'admin'),
-            'locked': False
+            'uploadedBy': session['email']
         }
         
         result = songs_collection.insert_one(song)
@@ -1515,8 +1424,7 @@ def add_song():
             'genre': data.get('genre', 'pop'),
             'createdAt': datetime.utcnow(),
             'updatedAt': datetime.utcnow(),
-            'uploadedBy': session.get('email', 'admin'),
-            'locked': False
+            'uploadedBy': session['email']
         }
         
         result = songs_collection.insert_one(song)
@@ -1622,44 +1530,12 @@ def get_songs_by_genre():
 def delete_song(song_id):
     """Delete song from MongoDB (admin only)"""
     try:
-        song = songs_collection.find_one({'_id': ObjectId(song_id)})
-        if not song:
-            return jsonify({'error': 'Song not found'}), 404
-            
-        is_main_admin = session.get('email') == 'admin@music.com'
-        if song.get('locked', False) and not is_main_admin:
-            return jsonify({'error': 'Song is locked. Only main admin can delete it.'}), 403
-            
         result = songs_collection.delete_one({'_id': ObjectId(song_id)})
+        if result.deleted_count == 0:
+            return jsonify({'error': 'Song not found'}), 404
         
         print(f"✓ Song deleted by {session['email']}: {song_id}")
         return jsonify({'success': True}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/songs/<song_id>/lock', methods=['PUT'])
-@admin_required
-def toggle_song_lock(song_id):
-    """Lock or unlock a song. Only main admin can do this."""
-    try:
-        is_main_admin = session.get('email') == 'admin@music.com'
-        if not is_main_admin:
-            return jsonify({'error': 'Only main admin can lock/unlock songs.'}), 403
-            
-        data = request.get_json()
-        new_locked_state = data.get('locked', True)
-        
-        result = songs_collection.update_one(
-            {'_id': ObjectId(song_id)},
-            {'$set': {'locked': new_locked_state}}
-        )
-        
-        if result.modified_count == 0:
-            song = songs_collection.find_one({'_id': ObjectId(song_id)})
-            if not song:
-                return jsonify({'error': 'Song not found'}), 404
-                
-        return jsonify({'success': True, 'locked': new_locked_state}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1668,15 +1544,6 @@ def toggle_song_lock(song_id):
 def update_song(song_id):
     """Update song in MongoDB (admin only) - supports both JSON and FormData"""
     try:
-        # Check security lock
-        song_doc = songs_collection.find_one({'_id': ObjectId(song_id)})
-        if not song_doc:
-            return jsonify({'error': 'Song not found'}), 404
-            
-        is_main_admin = session.get('email') == 'admin@music.com'
-        if song_doc.get('locked', False) and not is_main_admin:
-            return jsonify({'error': 'Song is locked. Only main admin can edit it.'}), 403
-            
         # Handle both FormData (multipart) and JSON requests
         if request.is_json:
             data = request.get_json()
@@ -2365,85 +2232,7 @@ def check_favorite(song_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ================= DISLIKES API =================
 
-@app.route('/api/dislikes', methods=['POST'])
-@login_required
-def add_dislike():
-    """Add song to dislikes and optionally remove from favorites"""
-    try:
-        data = request.get_json()
-        
-        song_id = data.get('songId') or data.get('id')
-        song_title = data.get('title', 'Unknown')
-        
-        if not song_id:
-            return jsonify({'error': 'Missing song ID'}), 400
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Remove from favorites if it exists there (can't be both liked and disliked)
-        cursor.execute('DELETE FROM favorites WHERE user_id = %s AND song_id = %s', (session['user_id'], song_id))
-        
-        # Check if already disliked
-        cursor.execute('SELECT id FROM dislikes WHERE user_id = %s AND song_id = %s', 
-                      (session['user_id'], song_id))
-        if cursor.fetchone():
-            release_db_connection(conn)
-            return jsonify({'success': True, 'message': 'Already disliked'}), 200
-            
-        # Add to dislikes
-        cursor.execute('''
-            INSERT INTO dislikes (user_id, song_id)
-            VALUES (%s, %s)
-        ''', (session['user_id'], song_id))
-        
-        conn.commit()
-        release_db_connection(conn)
-        
-        print(f"👎 Dislike added by {session['email']}: {song_title}")
-        return jsonify({'success': True, 'message': 'Song disliked'}), 201
-        
-    except Exception as e:
-        print(f"Error adding dislike: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/dislikes/<song_id>', methods=['DELETE'])
-@login_required
-def remove_dislike(song_id):
-    """Remove song from dislikes"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            DELETE FROM dislikes
-            WHERE user_id = %s AND song_id = %s
-        ''', (session['user_id'], song_id))
-        
-        conn.commit()
-        release_db_connection(conn)
-        
-        return jsonify({'success': True, 'message': 'Removed from dislikes'}), 200
-        
-    except Exception as e:
-        print(f"Error removing dislike: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/dislikes', methods=['GET'])
-@login_required
-def get_dislikes():
-    """Get all disliked songs"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT song_id FROM dislikes WHERE user_id = %s', (session['user_id'],))
-        disliked_ids = [row['song_id'] for row in cursor.fetchall()]
-        release_db_connection(conn)
-        return jsonify(disliked_ids), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 # ============================================================
 # PROFILE MANAGEMENT
