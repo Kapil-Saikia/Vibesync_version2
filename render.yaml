@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: vibesync
+    env: python
+    nativeEnvironmentVariables:
+      - key: DISPLAY
+        value: ":0"
+    buildCommand: sudo apt-get install -y libgles2-mesa libgl1-mesa-glx libglib2.0-0 && pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
