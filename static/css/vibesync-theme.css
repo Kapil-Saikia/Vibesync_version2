@@ -402,7 +402,7 @@ tr:hover td {
 .playlist-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.4rem; /* reduced from 0.75rem for tighter buttons */
 }
 
 .song-favorite-btn,
@@ -415,8 +415,9 @@ tr:hover td {
 .song-favorite-btn {
   background: rgba(236, 72, 153, 0.15);
   color: #fecdd3;
-  width: 42px;
-  height: 42px;
+  width: 38px; /* reduced from 42px */
+  height: 38px; /* reduced from 42px */
+  flex-shrink: 0;
 }
 
 .song-favorite-btn.favorited {
@@ -933,12 +934,28 @@ html, body {
   -webkit-touch-callout: none;
 }
 
-/* Hide scrollbars completely to feel like an app */
+/* Custom stylish scrollbars instead of hiding them completely */
 ::-webkit-scrollbar {
-  display: none !important;
+  width: 6px;
+  height: 6px;
 }
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 * {
-  scrollbar-width: none !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 /* Allow text selection in inputs specifically */
