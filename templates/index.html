@@ -12,6 +12,7 @@
   <title>VibeSync — Emotion-Based Music</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <script src="/static/js/shared-player.js"></script>
+  
   <style>
     @import url('/static/css/vibesync-theme.css');
     :root {
@@ -469,6 +470,91 @@
       max-width: 800px;
     }
     
+    /* Advanced Sci-Fi HUD Face Box */
+    .face-box {
+      position: absolute;
+      pointer-events: none;
+      border: 3px solid rgba(255, 0, 255, 0.6);
+      border-radius: 15px;
+      box-shadow: 0 0 25px rgba(255, 0, 255, 0.4), inset 0 0 15px rgba(255, 0, 255, 0.2);
+      transition: all 0.15s ease-out;
+      z-index: 10;
+      background: rgba(255, 0, 255, 0.05); /* Slight tint inside */
+    }
+    
+    .face-box::before, .face-box::after {
+      content: '';
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border: 4px solid #f0f;
+      border-radius: 8px;
+      transition: all 0.15s ease-out;
+    }
+    
+    /* Top Left Corner */
+    .face-box::before {
+      top: -4px; left: -4px;
+      border-right: none; border-bottom: none;
+    }
+    
+    /* Bottom Right Corner */
+    .face-box::after {
+      bottom: -4px; right: -4px;
+      border-left: none; border-top: none;
+    }
+    
+    .face-box-inner::before, .face-box-inner::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #0ff;
+      transition: all 0.2s ease-out;
+    }
+    
+    /* Top Right Corner */
+    .face-box-inner::before {
+      top: -2px; right: -2px;
+      border-left: none; border-bottom: none;
+    }
+    
+    /* Bottom Left Corner */
+    .face-box-inner::after {
+      bottom: -2px; left: -2px;
+      border-right: none; border-top: none;
+    }
+
+    .face-scanning {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: #0ff;
+      box-shadow: 0 0 15px #0ff, 0 0 30px #0ff;
+      opacity: 0.8;
+      animation: scan-vertical 2s linear infinite;
+    }
+
+    @keyframes scan-vertical {
+      0% { top: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    .hud-text {
+      position: absolute;
+      top: -25px;
+      left: 0;
+      color: #0ff;
+      font-family: monospace;
+      font-size: 12px;
+      text-shadow: 0 0 5px #0ff;
+      letter-spacing: 1px;
+    }
+
     .hero .badge {
       background: rgba(255,255,255,0.25);
       display: inline-flex;
@@ -868,13 +954,15 @@
     .song-card-footer {
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      gap: 4px;
       margin-top: 4px;
+      padding: 0 4px;
     }
     
     .song-play-btn {
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       background: var(--gradient-hero);
       border: none;
@@ -884,7 +972,7 @@
       justify-content: center;
       cursor: pointer;
       transition: var(--transition);
-      font-size: 16px;
+      font-size: 14px;
       flex-shrink: 0;
       box-shadow: var(--shadow-sm);
     }
@@ -897,10 +985,16 @@
     .song-play-btn:active {
       transform: scale(0.95);
     }
+
+    .song-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
     
     .song-favorite-btn {
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       border-radius: 50%;
       background: transparent;
       border: 2px solid rgba(255,255,255,0.2);
@@ -910,9 +1004,8 @@
       justify-content: center;
       cursor: pointer;
       transition: var(--transition);
-      font-size: 18px;
+      font-size: 14px;
       flex-shrink: 0;
-      margin-left: auto;
     }
     
     .song-favorite-btn:hover {
@@ -2093,10 +2186,22 @@
   }
   
   ::-webkit-scrollbar {
-    display: none !important;
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
   }
   * {
-    scrollbar-width: none !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   }
 
   /* Prevent text selection on cards but keep on inputs */
@@ -2211,6 +2316,28 @@
       <div class="video-container" id="videoContainer">
   <video id="videoElement" autoplay playsinline></video>
   <canvas id="canvas" class="canvas-hidden"></canvas>
+  
+  <!-- Fixed Targeting Box for Emotion Detection -->
+  <div id="targetBox" style="
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 300px;
+    border: 3px solid rgba(255, 0, 255, 0.4);
+    border-radius: 20px;
+    box-shadow: 0 0 20px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(255, 0, 255, 0.2);
+    pointer-events: none;
+    z-index: 5;
+    transition: all 0.3s ease;
+  ">
+    <!-- Targeting corners -->
+    <div style="position: absolute; top: -5px; left: -5px; width: 30px; height: 30px; border-top: 4px solid #f0f; border-left: 4px solid #f0f; border-radius: 5px 0 0 0;"></div>
+    <div style="position: absolute; top: -5px; right: -5px; width: 30px; height: 30px; border-top: 4px solid #f0f; border-right: 4px solid #f0f; border-radius: 0 5px 0 0;"></div>
+    <div style="position: absolute; bottom: -5px; left: -5px; width: 30px; height: 30px; border-bottom: 4px solid #f0f; border-left: 4px solid #f0f; border-radius: 0 0 0 5px;"></div>
+    <div style="position: absolute; bottom: -5px; right: -5px; width: 30px; height: 30px; border-bottom: 4px solid #f0f; border-right: 4px solid #f0f; border-radius: 0 0 5px 0;"></div>
+  </div>
   
   <!-- NEW: Landmark overlay canvas -->
   <canvas id="landmarkCanvas" style="
@@ -2977,6 +3104,8 @@ let volume = 70;
 let isMuted = false;
 let currentProgress = 0;
 let facecamActive = false;
+let stableFrames = 0;
+let previousFaceBox = null;
 let videoStream = null;
 let detectionInterval = null;
 let currentLanguage = null;  // NEW LINE
@@ -3344,8 +3473,11 @@ function renderSongs() {
       <div class="artist">${s.artist}</div>
       <div class="song-card-footer">
         <button class="song-play-btn" onclick="playSongById('${s.id}')" title="Play">▶</button>
-        <button class="song-favorite-btn ${s.favorited ? 'favorited' : ''}" onclick="toggleFavorite(event, '${s.id}')" title="Favorite">
+        <button class="song-favorite-btn ${s.favorited ? 'favorited' : ''}" onclick="toggleFavorite(event, '${s.id}')" title="Like">
           ${s.favorited ? '❤️' : '🤍'}
+        </button>
+        <button class="song-favorite-btn ${s.disliked ? 'disliked' : ''}" onclick="toggleDislike(event, '${s.id}')" title="Dislike">
+          ${s.disliked ? '👎' : '👎'}
         </button>
         <button class="song-favorite-btn" onclick="openAddToPlaylistModal('${s.id}')" title="Add to Playlist" style="margin-left: 4px;">
           📋
@@ -3597,6 +3729,74 @@ function togglePlayPause() {
   
   const song = window.sharedAudioPlayer.currentSong;
   showNotification(isPlaying ? `▶ Playing: ${song.title}` : `⏸ Paused: ${song.title}`);
+}
+
+async function toggleDislike(event, songId) {
+  event.stopPropagation();
+  
+  console.log('👎 Toggle dislike for song ID:', songId);
+  
+  const song = songs.find(s => s.id === songId) || allSongs.find(s => s.id === songId);
+  if (!song) return;
+  
+  if (window.dislikeDebouncers && window.dislikeDebouncers[songId]) return;
+  if (!window.dislikeDebouncers) window.dislikeDebouncers = {};
+  window.dislikeDebouncers[songId] = true;
+  setTimeout(() => { delete window.dislikeDebouncers[songId]; }, 500);
+  
+  song.disliked = !song.disliked;
+  if (song.disliked) {
+    song.favorited = false; // Cannot be liked and disliked concurrently
+  }
+  
+  // Re-render UI efficiently
+  const disButtons = document.querySelectorAll(`[onclick*="toggleDislike(event, '${songId}')"], .dis-btn-${songId}`);
+  disButtons.forEach(btn => {
+    if (song.disliked) {
+      btn.classList.add('disliked');
+      btn.style.color = 'rgba(255, 69, 58, 1)'; // Red thumbs down
+    } else {
+      btn.classList.remove('disliked');
+      btn.style.color = 'rgba(255,255,255,0.5)'; // Ghost color
+    }
+  });
+  
+  // If unfavorited, visually remove the favorite heart too
+  if (song.disliked) {
+    const favButtons = document.querySelectorAll(`[onclick*="toggleFavorite(event, '${songId}')"], .fav-btn-${songId}`);
+    favButtons.forEach(btn => {
+      btn.classList.remove('favorited');
+      btn.style.color = 'rgba(255,255,255,0.5)';
+      if (btn.textContent.includes('❤️')) btn.textContent = '🤍';
+    });
+  }
+
+  if (!window.currentUser || !window.currentUser.id) {
+    showNotification('Please login to dislike songs');
+    song.disliked = !song.disliked; // Revert
+    return;
+  }
+  
+  try {
+    if (song.disliked) {
+      showNotification('👎 Song disliked (removed from recommendations)');
+      fetch('/api/dislikes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId: song.id || song._id,
+          title: song.title
+        })
+      });
+    } else {
+      showNotification('👎 Dislike removed');
+      fetch(`/api/dislikes/${song.id || song._id}`, {
+        method: 'DELETE'
+      });
+    }
+  } catch (error) {
+    console.error('Error toggling dislike:', error);
+  }
 }
 
 function updatePlayPauseButton() {
@@ -4149,11 +4349,12 @@ function openQueue() {
         videoElement.srcObject = videoStream;
         videoContainer.classList.add('active');
         facecamActive = true;
+        window.isProcessingEmotion = false;
         
         showNotification('✅ Facecam started! Analyzing emotions...');
         
-        // Polling frequency reduced from 3000 to 8000ms to optimize server load
-        detectionInterval = setInterval(detectEmotion, 8000);
+        // Set interval to check for stable face and detect emotion
+        detectionInterval = setInterval(detectEmotion, 2000);
         
       } catch (err) {
         showNotification('❌ Camera permission denied or unavailable');
@@ -4162,7 +4363,7 @@ function openQueue() {
     }
 
    async function detectEmotion() {
-  if (!facecamActive) return;
+  if (!facecamActive || window.isProcessingEmotion) return;
   
   try {
     const videoElement = document.getElementById('videoElement');
@@ -4202,11 +4403,23 @@ function openQueue() {
         drawFaceBox(result.faceRegion);
       }
       
+      // Play a robotic beep sound
+      playBeep();
+      
       // Update emotion display
       updateEmotionDisplay(result.emotion, result.confidence);
       
       // Update song recommendations
       updateRecommendationsFromEmotion(result.emotion, result.songs);
+      
+      // Automatically scroll down to the recommendations if the section exists
+      const recommendationsSection = document.getElementById('recommendationsSection') || document.getElementById('songGrid');
+      if (recommendationsSection) {
+        recommendationsSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }
       
     } else {
       // No face detected
@@ -4236,6 +4449,31 @@ function updateDetectionStatus(message) {
   }
   statusDiv.textContent = message;
 }
+
+
+  // Synthesize beep sound
+  function playBeep() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+      oscillator.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); // Slide up to A6
+      
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.1);
+    } catch(e) {
+      console.log('Audio API not supported or blocked');
+    }
+  }
 
 function drawFaceBox(faceRegion) {
   // Remove existing face box
@@ -4486,8 +4724,11 @@ function drawFaceBox(faceRegion) {
               <div class="artist">${song.artist}</div>
               <div class="song-card-footer">
                 <button class="song-play-btn" onclick="playSongById('${song.id}')" title="Play">▶</button>
-                <button class="song-favorite-btn ${isFavorited ? 'favorited' : ''}" onclick="event.stopPropagation(); toggleFavorite(event, '${song.id}')" title="Favorite">
+                <button class="song-favorite-btn ${isFavorited ? 'favorited' : ''}" onclick="event.stopPropagation(); toggleFavorite(event, '${song.id}')" title="Like">
                   ${isFavorited ? '❤️' : '🤍'}
+                </button>
+                <button class="song-favorite-btn ${song.disliked ? 'disliked' : ''}" onclick="event.stopPropagation(); toggleDislike(event, '${song.id}')" title="Dislike">
+                  ${song.disliked ? '👎' : '👎'}
                 </button>
               </div>
             `;
@@ -4516,7 +4757,7 @@ function drawFaceBox(faceRegion) {
       }
     }
 
-    function stopFacecam() {
+    function stopFacecam(skipRender = false) {
       if (!facecamActive) {
         showNotification('Facecam is not running');
         return;
@@ -4537,7 +4778,9 @@ function drawFaceBox(faceRegion) {
       
       facecamActive = false;
       
-      renderSongs();
+      if (!skipRender) {
+        renderSongs();
+      }
       
       showNotification('⏹️ Facecam stopped');
     }
@@ -4575,7 +4818,7 @@ function drawFaceBox(faceRegion) {
     }, { passive: false });
 
     async function detectEmotion() {
-  if (!facecamActive) return;
+  if (!facecamActive || window.isProcessingEmotion) return;
   
   try {
     const videoElement = document.getElementById('videoElement');
@@ -4607,28 +4850,180 @@ function drawFaceBox(faceRegion) {
     const result = await response.json();
     
     if (result.success) {
-      // Show face detected status
-      updateDetectionStatus('✅ Face Detected! Analyzing emotion...');
-      
-      // Draw stylish face landmarks if coordinates provided
-      if (result.faceRegion && result.landmarks) {
-        drawStylishLandmarks(result.faceRegion, result.landmarks);
-      } else if (result.faceRegion) {
-        // Fallback to face box if no landmarks
-        drawFaceBox(result.faceRegion);
+      if (result.faceRegion) {
+        
+        // Calculate the center of the detected face
+        const faceCx = result.faceRegion.x + (result.faceRegion.w / 2);
+        const faceCy = result.faceRegion.y + (result.faceRegion.h / 2);
+
+        // Check if the face center is roughly within the middle of the frame (our target box)
+        // Video is usually 640x480. Target box is 250x300 in the center.
+        // X boundary: 320 +/- 125  |  Y boundary: 240 +/- 150
+        const isInsideBox = (
+          faceCx > (canvas.width / 2 - 150) && 
+          faceCx < (canvas.width / 2 + 150) &&
+          faceCy > (canvas.height / 2 - 180) && 
+          faceCy < (canvas.height / 2 + 180)
+        );
+
+        const targetBox = document.getElementById('targetBox');
+        
+        if (isInsideBox) {
+          // Change border color to green to indicate proper alignment
+          if (targetBox) {
+            targetBox.style.borderColor = 'rgba(0, 255, 0, 0.8)';
+            targetBox.style.boxShadow = '0 0 20px rgba(0, 255, 0, 0.5), inset 0 0 20px rgba(0, 255, 0, 0.3)';
+          }
+
+          // Track stillness
+          const currentFaceBox = result.faceRegion;
+          if (previousFaceBox) {
+            const dx = Math.abs(currentFaceBox.x - previousFaceBox.x);
+            const dy = Math.abs(currentFaceBox.y - previousFaceBox.y);
+            if (dx < 30 && dy < 30) {
+               stableFrames++;
+            } else {
+               stableFrames = 0;
+            }
+          } else {
+             stableFrames = 1;
+          }
+          previousFaceBox = currentFaceBox;
+
+          updateDetectionStatus(stableFrames >= 2 ? '✅ Analyzing emotion...' : 'Hold still...');
+          
+        } else {
+          // Face isn't inside the target box
+          if (targetBox) {
+            targetBox.style.borderColor = 'rgba(255, 0, 0, 0.8)';
+            targetBox.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.5), inset 0 0 20px rgba(255, 0, 0, 0.3)';
+          }
+          stableFrames = 0;
+          previousFaceBox = null;
+          updateDetectionStatus('Position face inside the frame');
+        }
+
+        // Draw stylish face landmarks if coordinates provided
+        if (result.landmarks) {
+          drawStylishLandmarks(result.faceRegion, result.landmarks);
+        }
+
+        if (stableFrames >= 2) {
+          const detectedMood = (result.emotion || "").toLowerCase();
+          const targetMoods = ['happy', 'sad', 'fear', 'angry', 'surprise'];
+          
+          if (!targetMoods.includes(detectedMood)) {
+            // It's neutral, disgust, or something else. Do not proceed to load songs.
+            updateDetectionStatus(`Detected: ${result.emotion}. Please show Happy, Sad, Angry, Fear, or Surprise.`);
+            // Optionally, turn border orange to indicate it's waiting for a valid emotion
+            const targetBox = document.getElementById('targetBox');
+            if (targetBox) {
+              targetBox.style.borderColor = 'rgba(255, 165, 0, 0.8)';
+              targetBox.style.boxShadow = '0 0 20px rgba(255, 165, 0, 0.5), inset 0 0 20px rgba(255, 165, 0, 0.3)';
+            }
+            return; // keep scanning, don't stop camera or scroll
+          }
+
+          window.isProcessingEmotion = true;
+          
+          // Play a robotic beep sound once
+          playBeep();
+          
+          updateDetectionStatus(`✨ Emotion Classified: ${result.emotion.toUpperCase()} ✨`);
+          
+          // 1) Show stylish success directly over the video
+          const videoContainer = document.getElementById('videoContainer');
+          const finalEmotionDisplay = document.createElement('div');
+          finalEmotionDisplay.style.cssText = `
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: #0ff;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.5s ease-in-out;
+          `;
+          finalEmotionDisplay.innerHTML = `
+            <div style="font-size: 60px; margin-bottom: 20px;">⚡</div>
+            <div style="font-size: 24px; color: #fff; margin-bottom: 10px; font-weight: 300; letter-spacing: 2px;">MOOD DETECTED</div>
+            <div style="font-size: 48px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 20px rgba(0,255,255,1); letter-spacing: 4px;">${result.emotion}</div>
+            <div style="margin-top: 30px; font-size: 16px; color: rgba(255,255,255,0.7);">Generating Custom Playlist...</div>
+          `;
+          if(videoContainer) videoContainer.appendChild(finalEmotionDisplay);
+          
+          // 2) Wait 2 seconds for user to read the dramatic confirmation
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // 3) Instantly stop the facecam
+          stopFacecam(true);
+          
+          // Show fake loading skeleton on grid first
+          const songGridEl = document.getElementById('songGrid');
+          if (songGridEl) {
+             songGridEl.innerHTML = `
+              <div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-title skeleton"></div><div class="skeleton-artist skeleton"></div><div class="skeleton-footer"><div class="skeleton-button skeleton"></div><div class="skeleton-favorite skeleton"></div><div class="skeleton-favorite skeleton"></div></div></div>
+              <div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-title skeleton"></div><div class="skeleton-artist skeleton"></div><div class="skeleton-footer"><div class="skeleton-button skeleton"></div><div class="skeleton-favorite skeleton"></div><div class="skeleton-favorite skeleton"></div></div></div>
+              <div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-title skeleton"></div><div class="skeleton-artist skeleton"></div><div class="skeleton-footer"><div class="skeleton-button skeleton"></div><div class="skeleton-favorite skeleton"></div><div class="skeleton-favorite skeleton"></div></div></div>
+              <div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-title skeleton"></div><div class="skeleton-artist skeleton"></div><div class="skeleton-footer"><div class="skeleton-button skeleton"></div><div class="skeleton-favorite skeleton"></div><div class="skeleton-favorite skeleton"></div></div></div>
+            `;
+          }
+          
+          // Automatically scroll down to the recommendations if the section exists
+          const recommendationsSection = document.getElementById('recommendationsSection') || document.getElementById('songGrid');
+          if (recommendationsSection) {
+            recommendationsSection.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'start' 
+            });
+          }
+          
+          // Wait for the fake skeleton loading
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Update emotion display top section
+          updateEmotionDisplay(result.emotion, result.confidence);
+          
+          // Update song recommendations replacing the skeletons
+          // This will ONLY recommend the songs returned by backend based on this single emotion
+          updateRecommendationsFromEmotion(result.emotion, result.songs);
+          
+          // Cleanup dynamic display element so it doesn't stay if camera restarts later
+          finalEmotionDisplay.remove();
+          
+          // Reset UI target box back to default
+          if (targetBox) {
+            targetBox.style.borderColor = 'rgba(255, 0, 255, 0.4)';
+            targetBox.style.boxShadow = '0 0 20px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(255, 0, 255, 0.2)';
+            
+            // Restore just the corners inside the box
+            targetBox.innerHTML = `
+              <div style="position: absolute; top: -5px; left: -5px; width: 30px; height: 30px; border-top: 4px solid #f0f; border-left: 4px solid #f0f; border-radius: 5px 0 0 0;"></div>
+              <div style="position: absolute; top: -5px; right: -5px; width: 30px; height: 30px; border-top: 4px solid #f0f; border-right: 4px solid #f0f; border-radius: 0 5px 0 0;"></div>
+              <div style="position: absolute; bottom: -5px; left: -5px; width: 30px; height: 30px; border-bottom: 4px solid #f0f; border-left: 4px solid #f0f; border-radius: 0 0 0 5px;"></div>
+              <div style="position: absolute; bottom: -5px; right: -5px; width: 30px; height: 30px; border-bottom: 4px solid #f0f; border-right: 4px solid #f0f; border-radius: 0 0 5px 0;"></div>
+            `;
+          }
+          
+          stableFrames = 0; // reset for next time
+          previousFaceBox = null;
+        }
+
       }
-      
-      // Wait a moment to show landmarks before updating emotion
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Update emotion display
-      updateEmotionDisplay(result.emotion, result.confidence);
-      
-      // Update song recommendations
-      updateRecommendationsFromEmotion(result.emotion, result.songs);
       
     } else {
       // No face detected
+      const targetBox = document.getElementById('targetBox');
+      if (targetBox) {
+        targetBox.style.borderColor = 'rgba(255, 0, 255, 0.4)';
+        targetBox.style.boxShadow = '0 0 20px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(255, 0, 255, 0.2)';
+      }
+      stableFrames = 0;
+      previousFaceBox = null;
       updateDetectionStatus('❌ No face detected - Please look at camera');
       
       if (result.message && result.message.includes('No face detected')) {
@@ -5140,7 +5535,8 @@ async function addSongToPlaylist(playlistId, songData) {
         <td style="padding: 12px 20px; text-align: center;">
           <div style="display: flex; gap: 8px; justify-content: center;">
             <button class="action-btn" onclick="playPlaylistSongByIndex(${currentCount - 1})" title="Play" style="background: none; border: none; color: rgba(124, 58, 237, 1); cursor: pointer; font-size: 16px; padding: 4px 8px;">▶</button>
-            <button class="action-btn song-favorite-btn fav-btn-${newSong.id}" onclick="toggleFavorite(event, '${newSong.id}')" title="Add to Favorites" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; padding: 4px 8px;">♡</button>
+            <button class="action-btn song-favorite-btn fav-btn-${newSong.id}" onclick="toggleFavorite(event, '${newSong.id}')" title="Like" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; padding: 4px 8px;">♡</button>
+            <button class="action-btn song-dislike-btn dis-btn-${newSong.id}" onclick="toggleDislike(event, '${newSong.id}')" title="Dislike" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; padding: 4px 8px;">👎</button>
             <button class="action-btn" onclick="removeSongFromPlaylist(${window.currentPlaylistId}, '${newSong.id}')" title="Remove" style="background: none; border: none; color: rgba(239, 68, 68, 0.7); cursor: pointer; font-size: 16px; padding: 4px 8px;">✕</button>
           </div>
         </td>
@@ -5386,7 +5782,8 @@ async function openPlaylistDetail(playlistId) {
             <td style="padding: 12px 20px; text-align: center;">
               <div style="display: flex; gap: 8px; justify-content: center;">
                 <button class="action-btn" onclick="playPlaylistSongByIndex(${index})" title="Play" style="background: none; border: none; color: rgba(124, 58, 237, 1); cursor: pointer; font-size: 16px; padding: 4px 8px;">▶</button>
-                <button class="action-btn song-favorite-btn ${isFavorited ? 'favorited' : ''} fav-btn-${song.id}" onclick="toggleFavorite(event, '${song.id}')" title="${isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}" style="background: none; border: none; color: ${isFavorited ? 'rgba(220, 20, 60, 1)' : 'rgba(255,255,255,0.5)'}; cursor: pointer; font-size: 16px; padding: 4px 8px;">${isFavorited ? '❤' : '♡'}</button>
+                <button class="action-btn song-favorite-btn ${isFavorited ? 'favorited' : ''} fav-btn-${song.id}" onclick="toggleFavorite(event, '${song.id}')" title="${isFavorited ? 'Unlike' : 'Like'}" style="background: none; border: none; color: ${isFavorited ? 'rgba(220, 20, 60, 1)' : 'rgba(255,255,255,0.5)'}; cursor: pointer; font-size: 16px; padding: 4px 8px;">${isFavorited ? '❤' : '♡'}</button>
+                <button class="action-btn song-dislike-btn dis-btn-${song.id}" onclick="toggleDislike(event, '${song.id}')" title="Dislike" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; padding: 4px 8px;">👎</button>
                 <button class="action-btn" onclick="removeSongFromPlaylist(${playlistId}, '${song.id}')" title="Remove" style="background: none; border: none; color: rgba(239, 68, 68, 0.7); cursor: pointer; font-size: 16px; padding: 4px 8px;">✕</button>
               </div>
             </td>
@@ -7762,5 +8159,6 @@ async function loadGenresSection() {
   }
 }
 </script>
+
 </body>
 </html>

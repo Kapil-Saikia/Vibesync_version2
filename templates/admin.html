@@ -8,6 +8,28 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <style>
     @import url('/static/css/vibesync-theme.css');
+    
+    /* CUSTOM SCROLLBARS FOR ADMIN DASHBOARD */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.02);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -337,8 +359,9 @@
     .track-list {
       display: grid;
       gap: 12px;
-      max-height: 500px;
+      max-height: 600px;
       overflow-y: auto;
+      padding-right: 8px; /* Room for scrollbar */
     }
 
     .track-item {
@@ -347,24 +370,74 @@
       justify-content: space-between;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px 18px;
+      gap: 16px;
+      transition: all 0.2s ease;
+    }
+
+    .track-item:hover {
+      background: rgba(255,255,255,0.06);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-color: rgba(236, 72, 153, 0.3); /* accent-primary tint */
+    }
+    
+    .track-cover {
+      width: 48px;
+      height: 48px;
       border-radius: 8px;
-      padding: 12px;
-      gap: 12px;
+      object-fit: cover;
+      background: #1e2435;
+      flex-shrink: 0;
     }
 
     .track-info {
       flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
     .track-title {
       font-weight: 600;
-      margin-bottom: 4px;
+      font-size: 1rem;
+      color: #fff;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .track-meta {
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       color: #a2a9b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .track-emotions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    
+    .emotion-tag {
+      background: rgba(236, 72, 153, 0.15);
+      color: #fecdd3;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .track-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .track-actions {
@@ -1184,22 +1257,65 @@
         return;
       }
 
+      const isMainAdmin = window.currentUserEmail === 'admin@music.com';
+
       songsList.innerHTML = allSongs.map(song => `
-  <div class="track-item">
+  <div class="track-item" ${song.locked ? 'style="border-color: rgba(239, 68, 68, 0.4);"' : ''}>
+    <img src="${song.coverUrl || 'https://picsum.photos/100/100?random=' + song._id}" alt="Cover" class="track-cover" loading="lazy" />
     <div class="track-info">
       <div class="track-title">${song.title}</div>
-      <div class="track-meta">${song.artist} • ${song.language || 'English'} • Emotions: ${song.emotions.join(', ')}</div>
+      <div class="track-meta">${song.artist} • ${song.language || 'English'}</div>
+      <div class="track-meta" style="margin-top: 2px; color: #8bb4e7; font-size: 0.75rem;">
+        👤 Added by: ${song.uploadedBy || 'Unknown'}
+      </div>
+      <div class="track-emotions">
+        ${(song.emotions || []).map(emotion => `<span class="emotion-tag">${emotion}</span>`).join('')}
+      </div>
     </div>
     <div class="track-actions">
+      ${isMainAdmin ? `
+        <button class="btn ${song.locked ? 'btn-secondary' : 'btn-primary'} btn-small" style="font-size:12px; padding:6px 10px;" onclick="toggleSongLock('${song._id}', ${!song.locked})">
+          ${song.locked ? '🔓 Unlock' : '🔒 Lock'}
+        </button>
+      ` : (song.locked ? '<span style="font-size:12px; color: #ef4444; font-weight: 600;">🔒 Locked</span>' : '')}
+      
+      ${(!song.locked || isMainAdmin) ? `
       <button class="btn btn-secondary btn-small" onclick="openEditSongModal('${song._id}')">
         ✏️ Edit
       </button>
       <button class="btn btn-danger btn-small" onclick="deleteSong('${song._id}', '${song.title}')">
-        Delete
+        🗑️ Delete
       </button>
- </div>
+      ` : ''}
+    </div>
+  </div>
 `).join('');
 
+    }
+
+    // Toggle Lock function for main admin
+    async function toggleSongLock(songId, lockState) {
+      if (window.currentUserEmail !== 'admin@music.com') {
+        showNotification('❌ Only the main admin can lock songs');
+        return;
+      }
+      try {
+        const response = await fetch(`/api/songs/${songId}/lock`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locked: lockState })
+        });
+        
+        if (response.ok) {
+          showNotification(`✅ Song ${lockState ? 'locked' : 'unlocked'} successfully`);
+          loadSongs();
+        } else {
+          const data = await response.json();
+          showNotification('❌ Error: ' + data.error);
+        }
+      } catch (error) {
+        showNotification('❌ Network error toggling lock');
+      }
     }
 
     // Artist Management for Datalist
