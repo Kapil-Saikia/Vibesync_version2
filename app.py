@@ -51,7 +51,12 @@ options = FaceLandmarkerOptions(
     min_face_detection_confidence=0.5,
     min_face_presence_confidence=0.5
 )
-face_landmarker = FaceLandmarker.create_from_options(options)
+# AFTER
+try:
+    face_landmarker = FaceLandmarker.create_from_options(options)
+except Exception as e:
+    print(f"Warning: FaceLandmarker failed to load: {e}")
+    face_landmarker = None
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_FILE_SIZE = 50 * 1024 * 1024
  
