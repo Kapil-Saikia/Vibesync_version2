@@ -354,6 +354,18 @@ def init_postgres():
     finally:
         cursor.close()
         release_db_connection(conn)
+#dislike table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS dislikes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            song_id VARCHAR(255) NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, song_id)
+    )
+''')
+
 
 # ============================================================
 # HELPER FUNCTIONS (Keep these as is)
