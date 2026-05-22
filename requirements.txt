@@ -6,7 +6,7 @@ psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 mediapipe>=0.10.8
 
-numpy==1.23.5
+numpy>=1.26.4
 opencv-python-headless==4.8.0.76
 
 pillow
