@@ -1,6 +1,5 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
-
 import numpy as np
 import base64
 import io
@@ -27,9 +26,6 @@ CORS(app)
 
 from dotenv import load_dotenv
 load_dotenv()
-
-print("\n🔄 Load Custom Emotion Detection Model...")
-MODEL_PATH = 'fer2013_best_model.keras'
 # emotion_model = keras.models.load_model(MODEL_PATH) # Pretend we load it
 EMOTION_LABELS = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
