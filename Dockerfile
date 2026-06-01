@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    libegl1 \
+    libegl1-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
