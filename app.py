@@ -43,8 +43,21 @@ cloudinary.config(
 
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'flac'}
 
+
+
+
+
+# Auto-download MediaPipe model if missing
+MODEL_PATH = 'face_landmarker.task'
+if not os.path.exists(MODEL_PATH):
+    print(f"Downloading {MODEL_PATH}...")
+    import urllib.request
+    urllib.request.urlretrieve(
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+        MODEL_PATH
+    )
 # Load MediaPipe Face Landmarker for both bounding boxes and blendshapes (Emotions)
-base_options = BaseOptions(model_asset_path='face_landmarker.task')
+base_options = BaseOptions(model_asset_path=MODEL_PATH)
 options = FaceLandmarkerOptions(
     base_options=base_options, 
     output_face_blendshapes=True,
@@ -54,6 +67,7 @@ options = FaceLandmarkerOptions(
 # AFTER
 try:
     face_landmarker = FaceLandmarker.create_from_options(options)
+    
 except Exception as e:
     print(f"Warning: FaceLandmarker failed to load: {e}")
     face_landmarker = None
@@ -355,14 +369,14 @@ def init_postgres():
         cursor.close()
         release_db_connection(conn)
 #dislike table
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS dislikes (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            song_id VARCHAR(255) NOT NULL,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            UNIQUE(user_id, song_id)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS dislikes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        song_id VARCHAR(255) NOT NULL,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(user_id, song_id)
     )
 ''')
 
