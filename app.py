@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
+
 import numpy as np
 import base64
 import io
@@ -26,6 +27,9 @@ CORS(app)
 
 from dotenv import load_dotenv
 load_dotenv()
+
+print("\n🔄 Load Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
 # emotion_model = keras.models.load_model(MODEL_PATH) # Pretend we load it
 EMOTION_LABELS = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
@@ -1542,16 +1546,71 @@ def get_songs_by_genre():
 
 
 
+@app.route('/api/songs/<song_id>/lock', methods=['PUT'])
+@admin_required
+def toggle_song_lock(song_id):
+    """Lock or unlock a song (Main admin only)"""
+    if session.get('email') != 'admin@music.com':
+        return jsonify({'error': 'Only main admin can lock/unlock songs'}), 403
+        
+    try:
+        data = request.get_json()
+        is_locked = data.get('locked', False)
+        
+        result = songs_collection.update_one(
+            {'_id': ObjectId(song_id)},
+            {'$set': {'locked': is_locked, 'updatedAt': datetime.utcnow()}}
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'error': 'Song not found'}), 404
+            
+        print(f"✓ Song {'locked' if is_locked else 'unlocked'} by {session['email']}: {song_id}")
+        
+        try:
+            conn = get_db_connection()
+            c = conn.cursor()
+            action = "Locked Song" if is_locked else "Unlocked Song"
+            c.execute('INSERT INTO admin_logs (admin_email, action, details) VALUES (%s, %s, %s)', (session['email'], action, f"{action} '{song_id}'"))
+            conn.commit()
+            c.close()
+            release_db_connection(conn)
+        except Exception as e:
+            print("Error logging:", e)
+            
+        return jsonify({'success': True, 'locked': is_locked}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/songs/<song_id>', methods=['DELETE'])
 @admin_required
 def delete_song(song_id):
     """Delete song from MongoDB (admin only)"""
     try:
+        song = songs_collection.find_one({'_id': ObjectId(song_id)})
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+            
+        if song.get('locked', False) and session.get('email') != 'admin@music.com':
+            return jsonify({'error': 'This song is locked by the main admin and cannot be deleted.'}), 403
+            
         result = songs_collection.delete_one({'_id': ObjectId(song_id)})
         if result.deleted_count == 0:
             return jsonify({'error': 'Song not found'}), 404
         
         print(f"✓ Song deleted by {session['email']}: {song_id}")
+        
+        try:
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute('INSERT INTO admin_logs (admin_email, action, details) VALUES (%s, %s, %s)', 
+                     (session['email'], 'Deleted Song', f"Deleted song '{song.get('title', song_id)}'"))
+            conn.commit()
+            c.close()
+            release_db_connection(conn)
+        except Exception as ignore:
+            pass
+            
         return jsonify({'success': True}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1561,6 +1620,13 @@ def delete_song(song_id):
 def update_song(song_id):
     """Update song in MongoDB (admin only) - supports both JSON and FormData"""
     try:
+        song = songs_collection.find_one({'_id': ObjectId(song_id)})
+        if not song:
+            return jsonify({'error': 'Song not found'}), 404
+            
+        if song.get('locked', False) and session.get('email') != 'admin@music.com':
+            return jsonify({'error': 'This song is locked by the main admin and cannot be updated.'}), 403
+            
         # Handle both FormData (multipart) and JSON requests
         if request.is_json:
             data = request.get_json()
@@ -1677,6 +1743,17 @@ def update_song(song_id):
             return jsonify({'error': 'Song not found'}), 404
         
         print(f"✓ Song updated by {session['email']}: {title}")
+        
+        try:
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute('INSERT INTO admin_logs (admin_email, action, details) VALUES (%s, %s, %s)', 
+                     (session['email'], 'Updated Song', f"Updated song '{title}'"))
+            conn.commit()
+            c.close()
+            release_db_connection(conn)
+        except Exception as ignore:
+            pass
         
         return jsonify({
             'success': True,
