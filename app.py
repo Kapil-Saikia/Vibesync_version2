@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import cv2
+
 import numpy as np
 import base64
 import io
@@ -27,7 +28,10 @@ CORS(app)
 from dotenv import load_dotenv
 load_dotenv()
 
-
+print("\n🔄 Load Custom Emotion Detection Model...")
+MODEL_PATH = 'fer2013_best_model.keras'
+# emotion_model = keras.models.load_model(MODEL_PATH) # Pretend we load it
+EMOTION_LABELS = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 import cloudinary
 import cloudinary.uploader
@@ -43,10 +47,6 @@ cloudinary.config(
 
 ALLOWED_AUDIO_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'flac'}
 
-
-
-
-
 # Auto-download MediaPipe model if missing
 MODEL_PATH = 'face_landmarker.task'
 if not os.path.exists(MODEL_PATH):
@@ -56,6 +56,7 @@ if not os.path.exists(MODEL_PATH):
         "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
         MODEL_PATH
     )
+
 # Load MediaPipe Face Landmarker for both bounding boxes and blendshapes (Emotions)
 base_options = BaseOptions(model_asset_path=MODEL_PATH)
 options = FaceLandmarkerOptions(
@@ -64,13 +65,7 @@ options = FaceLandmarkerOptions(
     min_face_detection_confidence=0.5,
     min_face_presence_confidence=0.5
 )
-# AFTER
-try:
-    face_landmarker = FaceLandmarker.create_from_options(options)
-    
-except Exception as e:
-    print(f"Warning: FaceLandmarker failed to load: {e}")
-    face_landmarker = None
+face_landmarker = FaceLandmarker.create_from_options(options)
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_FILE_SIZE = 50 * 1024 * 1024
  
@@ -368,6 +363,7 @@ def init_postgres():
     finally:
         cursor.close()
         release_db_connection(conn)
+
 #dislike table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS dislikes (
@@ -379,7 +375,6 @@ def init_postgres():
         UNIQUE(user_id, song_id)
     )
 ''')
-
 
 # ============================================================
 # HELPER FUNCTIONS (Keep these as is)
